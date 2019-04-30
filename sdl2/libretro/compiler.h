@@ -261,6 +261,12 @@ typedef SINT32	FILELEN;
 #define	MEMORY_MAXSIZE		230
 #endif
 
+#if defined(SUPPORT_NP2_THREAD)
+//#define SUPPORT_SOUND_THREAD
+#define SUPPORT_SCRNDRAW_THREAD
+#define SUPPORT_NEVENT_THREAD
+#endif  /* SUPPORT_NP2_THREAD */
+
 #include "retro_inline.h"
 #include "common.h"
 

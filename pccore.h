@@ -176,6 +176,9 @@ struct tagNP2Config
 #if defined(SUPPORT_FMGEN)
 	UINT8	usefmgen;
 #endif	/* SUPPORT_FMGEN */
+#if defined(SUPPORT_NP2_THREAD)
+	UINT8	usethread;
+#endif	/* SUPPORT_NP2_THREAD */
 
 	UINT8	fddequip;
 	UINT8	MOTOR;
@@ -322,6 +325,10 @@ typedef struct
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#if defined(SUPPORT_NP2_THREAD)
+extern UINT8 np2_thread_en;
+#endif	/* SUPPORT_NP2_THREAD */
 
 extern const OEMCHAR np2version[];
 

@@ -14,6 +14,9 @@
 #if defined(SUPPORT_WAVEREC)
 #include "common/wavefile.h"
 #endif	/* defined(SUPPORT_WAVEREC) */
+#if defined(SUPPORT_SOUND_THREAD)
+#include "np2_thread.h"
+#endif	/* defined(SUPPORT_SOUND_THREAD) */
 
 	SOUNDCFG	soundcfg;
 
@@ -78,11 +81,19 @@ static void streamprepare(UINT samples) {
  * @retval SUCCESS If succeeded
  * @retval FAILURE If failed
  */
+#if defined(SUPPORT_SOUND_THREAD)
+static BRESULT sound_recstart_dist(const OEMCHAR *lpFilename)
+#else
 BRESULT sound_recstart(const OEMCHAR *lpFilename)
+#endif  /* SUPPORT_SOUND_THREAD */
 {
 	WAVEFILEH rec;
 
+#if defined(SUPPORT_SOUND_THREAD)
+	sound_recstop_dist();
+#else
 	sound_recstop();
+#endif  /* SUPPORT_SOUND_THREAD */
 	if (sndstream.buffer == NULL)
 	{
 		return FAILURE;
@@ -99,7 +110,11 @@ BRESULT sound_recstart(const OEMCHAR *lpFilename)
 /**
  * Stops recording
  */
+#if defined(SUPPORT_SOUND_THREAD)
+static void sound_recstop_dist(void)
+#else
 void sound_recstop(void)
+#endif  /* SUPPORT_SOUND_THREAD */
 {
 	WAVEFILEH rec;
 
@@ -209,7 +224,11 @@ static void filltailsample(UINT nCount)
 
 // ----
 
+#if defined(SUPPORT_SOUND_THREAD)
+static BRESULT sound_create_dist(UINT rate, UINT ms) {
+#else
 BRESULT sound_create(UINT rate, UINT ms) {
+#endif  /* SUPPORT_SOUND_THREAD */
 
 	UINT	samples;
 	UINT	reserve;
@@ -262,11 +281,19 @@ scre_err1:
 	return(FAILURE);
 }
 
+#if defined(SUPPORT_SOUND_THREAD)
+static void sound_destroy_dist(void) {
+#else
 void sound_destroy(void) {
+#endif  /* SUPPORT_SOUND_THREAD */
 
 	if (sndstream.buffer) {
 #if defined(SUPPORT_WAVEREC)
+#if defined(SUPPORT_SOUND_THREAD)
+		sound_recstop_dist();
+#else
 		sound_recstop();
+#endif  /* SUPPORT_SOUND_THREAD */
 #endif	/* defined(SUPPORT_WAVEREC) */
 		soundmng_stop();
 		streamreset();
@@ -277,7 +304,11 @@ void sound_destroy(void) {
 	}
 }
 
+#if defined(SUPPORT_SOUND_THREAD)
+static void sound_reset_dist(void) {
+#else
 void sound_reset(void) {
+#endif  /* SUPPORT_SOUND_THREAD */
 
 	if (sndstream.buffer) {
 		soundmng_reset();
@@ -287,7 +318,11 @@ void sound_reset(void) {
 	}
 }
 
+#if defined(SUPPORT_SOUND_THREAD)
+static void sound_changeclock_dist(void) {
+#else
 void sound_changeclock(void) {
+#endif  /* SUPPORT_SOUND_THREAD */
 
 	UINT32	clk;
 	UINT	hz;
@@ -314,7 +349,11 @@ void sound_changeclock(void) {
 	soundcfg.lastclock = CPU_CLOCK;
 }
 
+#if defined(SUPPORT_SOUND_THREAD)
+static void sound_streamregist_dist(void *hdl, SOUNDCB cbfn) {
+#else
 void sound_streamregist(void *hdl, SOUNDCB cbfn) {
+#endif  /* SUPPORT_SOUND_THREAD */
 
 	if (sndstream.buffer) {
 		if ((cbfn) &&
@@ -329,7 +368,11 @@ void sound_streamregist(void *hdl, SOUNDCB cbfn) {
 
 // ----
 
+#if defined(SUPPORT_SOUND_THREAD)
+static void sound_sync_dist(void) {
+#else
 void sound_sync(void) {
+#endif  /* SUPPORT_SOUND_THREAD */
 
 	UINT32	length;
 
@@ -366,16 +409,28 @@ void sound_sync(void) {
 
 static volatile int locks = 0;
 
+#if defined(SUPPORT_SOUND_THREAD)
+static const SINT32 *sound_pcmlock_dist(void) {
+#else
 const SINT32 *sound_pcmlock(void) {
+#endif  /* SUPPORT_SOUND_THREAD */
 
 const SINT32 *ret;
 
+#if defined(SUPPORT_SOUND_THREAD)
+	if(np2_thread_en) {
+		ret = (const SINT32 *)1;
+	} else {
+#endif  /* SUPPORT_SOUND_THREAD */
 	if (locks) {
 		TRACEOUT(("sound pcm lock: already locked"));
 		return(NULL);
 	}
 	locks++;
 	ret = sndstream.buffer;
+#if defined(SUPPORT_SOUND_THREAD)
+	}
+#endif  /* SUPPORT_SOUND_THREAD */
 	if (ret) {
 		SNDCSEC_ENTER;
 		if (sndstream.remain > sndstream.reserve)
@@ -397,7 +452,24 @@ const SINT32 *ret;
 	return(ret);
 }
 
+#if defined(SUPPORT_SOUND_THREAD)
+static void sound_pcmmix_dist(
+#else
+void sound_pcmmix(
+#endif  /* SUPPORT_SOUND_THREAD */
+  void PARTSCALL (*fnmix)(SINT16*, const SINT32*, UINT),
+  SINT16* dst,
+  const SINT32* src,
+  UINT size
+) {
+  (*fnmix)(dst, src, size);
+}
+
+#if defined(SUPPORT_SOUND_THREAD)
+static void sound_pcmunlock_dist(const SINT32 *hdl) {
+#else
 void sound_pcmunlock(const SINT32 *hdl) {
+#endif  /* SUPPORT_SOUND_THREAD */
 
 	int		leng;
 
@@ -412,6 +484,396 @@ void sound_pcmunlock(const SINT32 *hdl) {
 		sndstream.remain = sndstream.samples + sndstream.reserve - leng;
 //		sndstream.remain += sndstream.samples;
 		SNDCSEC_LEAVE;
+#if defined(SUPPORT_SOUND_THREAD)
+	if(!np2_thread_en) {
+#endif  /* SUPPORT_SOUND_THREAD */
 		locks--;
+#if defined(SUPPORT_SOUND_THREAD)
+	}
+#endif  /* SUPPORT_SOUND_THREAD */
 	}
 }
+
+#if defined(SUPPORT_SOUND_THREAD)
+typedef enum {
+  NP2_THREAD_SOUND_NOP = 0,
+#if defined(SUPPORT_WAVEREC)
+  NP2_THREAD_SOUND_SOUND_RECSTART,
+  NP2_THREAD_SOUND_SOUND_RECSTOP,
+#endif  /* SUPPORT_WAVEREC */
+  NP2_THREAD_SOUND_CREATE,
+  NP2_THREAD_SOUND_DESTROY,
+  NP2_THREAD_SOUND_RESET,
+  NP2_THREAD_SOUND_CHANGECLOCK,
+  NP2_THREAD_SOUND_STREAMREGIST,
+  NP2_THREAD_SOUND_SYNC,
+  NP2_THREAD_SOUND_PCMLOCK,
+  NP2_THREAD_SOUND_PCMMIX,
+  NP2_THREAD_SOUND_PCMUNLOCK,
+} NP2_Thread_sound_func_t;
+
+typedef struct NP2_Thread_sound_req_base_t_ {
+  NP2_Thread_sound_func_t func;
+  void* param;
+} NP2_Thread_sound_req_base_t;
+
+#if defined(SUPPORT_WAVEREC)
+typedef struct NP2_Thread_sound_req_recstart_t_ {
+  NP2_Thread_sound_func_t func;
+  char filename[1024];
+} NP2_Thread_sound_req_recstart_t;
+#endif  /* SUPPORT_WAVEREC */
+
+typedef struct NP2_Thread_sound_req_create_t_ {
+  NP2_Thread_sound_func_t func;
+  UINT rate;
+  UINT ms;
+} NP2_Thread_sound_req_create_t;
+
+typedef struct NP2_Thread_sound_req_streamregist_t_ {
+  NP2_Thread_sound_func_t func;
+  void *hdl;
+  SOUNDCB cbfn;
+} NP2_Thread_sound_req_streamregist_t;
+
+typedef struct NP2_Thread_sound_req_pcmmix_t_ {
+  NP2_Thread_sound_func_t func;
+  void PARTSCALL (*fnmix)(SINT16*, const SINT32*, UINT);
+  SINT16* dst;
+  const SINT32* src;
+  UINT size;
+} NP2_Thread_sound_req_pcmmix_t;
+
+typedef union NP2_Thread_sound_req_t_ {
+  NP2_Thread_sound_req_base_t base;
+#if defined(SUPPORT_WAVEREC)
+  NP2_Thread_sound_req_recstart_t recstart;
+#endif  /* SUPPORT_WAVEREC */
+  NP2_Thread_sound_req_create_t create;
+  NP2_Thread_sound_req_streamregist_t streamregist;
+  NP2_Thread_sound_req_pcmmix_t pcmmix;
+} NP2_Thread_sound_req_t;
+
+static NP2_Thread_t thSound;
+static NP2_WaitQueue_t queSound;
+static NP2_Semaphore_t semSound;
+
+#define NP2_SOUND_WAITQUEUE_RING
+
+static void* NP2_Sound(void* param) {
+  int loop = 1;
+  NP2_Thread_sound_req_t* req;
+
+  (void)param;
+  NP2_Semaphore_Create(&semSound, 1);
+#if defined(NP2_SOUND_WAITQUEUE_RING)
+  NP2_WaitQueue_Ring_Create(&queSound, sizeof(NP2_Thread_sound_req_t), 256);
+#else
+  NP2_WaitQueue_List_Create(&queSound);
+#endif  /* NP2_SOUND_WAITQUEUE_RING */
+
+  while(loop) {
+    NP2_WaitQueue_Shift_Wait(&queSound, &semSound, (void**)&req);
+
+    switch(req->base.func) {
+    case NP2_THREAD_SOUND_NOP:
+      break;
+#if defined(SUPPORT_WAVEREC)
+    case NP2_THREAD_SOUND_SOUND_RECSTART:
+      sound_recstart_dist((const OEMCHAR*)req->recstart.filename);
+      break;
+    case NP2_THREAD_SOUND_SOUND_RECSTOP:
+      sound_recstop_dist();
+      break;
+#endif  /* SUPPORT_WAVEREC */
+    case NP2_THREAD_SOUND_CREATE:
+      sound_create_dist(req->create.rate, req->create.ms);
+      break;
+    case NP2_THREAD_SOUND_DESTROY:
+      sound_destroy_dist();
+      loop = 0;
+      break;
+    case NP2_THREAD_SOUND_RESET:
+      sound_reset_dist();
+      break;
+    case NP2_THREAD_SOUND_CHANGECLOCK:
+      sound_changeclock_dist();
+      break;
+    case NP2_THREAD_SOUND_STREAMREGIST:
+      sound_streamregist_dist(
+        req->streamregist.hdl,
+        req->streamregist.cbfn
+      );
+      break;
+    case NP2_THREAD_SOUND_SYNC:
+      sound_sync_dist();
+      break;
+    case NP2_THREAD_SOUND_PCMLOCK:
+      sound_pcmlock_dist();
+      break;
+    case NP2_THREAD_SOUND_PCMMIX:
+      sound_pcmmix_dist(
+        req->pcmmix.fnmix,
+        req->pcmmix.dst,
+        req->pcmmix.src,
+        req->pcmmix.size
+      );
+      break;
+    case NP2_THREAD_SOUND_PCMUNLOCK:
+      sound_pcmunlock_dist((const SINT32 *)1);
+      break;
+    }
+
+#if !defined(NP2_SOUND_WAITQUEUE_RING)
+    if(queSound.list.type == NP2_WAITQUEUE_TYPE_LIST)
+      free(req);
+#endif  /* NP2_SOUND_WAITQUEUE_RING */
+  }
+
+  NP2_WaitQueue_Destroy(&queSound);
+  NP2_Semaphore_Destroy(&semSound);
+
+  NP2_Thread_Exit(NULL);
+
+  return NULL;
+}
+
+#if defined(SUPPORT_WAVEREC)
+BRESULT sound_recstart(const OEMCHAR *filename) {
+  NP2_Thread_sound_req_t* preq;
+
+  if(np2_thread_en) {
+#if defined(NP2_SOUND_WAITQUEUE_RING)
+    preq = NP2_WaitQueue_Ring_GetMemory(&queSound, &semSound);
+#else
+    preq = malloc(sizeof(NP2_Thread_sound_req_t));
+#endif  /* NP2_SOUND_WAITQUEUE_RING */
+    preq->recstart.func = NP2_THREAD_SOUND_SOUND_RECSTART;
+    strcpy(preq->recstart.filename, filename);
+
+    NP2_WaitQueue_Append(&queSound, &semSound, preq);
+
+    return SUCCESS;
+  } else {
+    return sound_recstart_dist(pparam);
+  }
+}
+
+void sound_recstop(void) {
+  NP2_Thread_sound_req_t* preq;
+
+  if(np2_thread_en) {
+#if defined(NP2_SOUND_WAITQUEUE_RING)
+    preq = NP2_WaitQueue_Ring_GetMemory(&queSound, &semSound);
+#else
+    preq = malloc(sizeof(NP2_Thread_sound_req_t));
+#endif  /* NP2_SOUND_WAITQUEUE_RING */
+    preq->base.func = NP2_THREAD_SOUND_SOUND_RECSTOP;
+    preq->base.param = NULL;
+
+    NP2_WaitQueue_Append(&queSound, &semSound, preq);
+  } else {
+    sound_recstop_dist();
+  }
+}
+#endif  /* SUPPORT_WAVEREC */
+
+BRESULT sound_create(UINT rate, UINT ms) {
+  NP2_Thread_sound_req_t* preq;
+
+  if(np2_thread_en) {
+    NP2_Thread_Create(&thSound, NP2_Sound, NULL);
+    NP2_Sleep_ms(10);
+
+#if defined(NP2_SOUND_WAITQUEUE_RING)
+    preq = NP2_WaitQueue_Ring_GetMemory(&queSound, &semSound);
+#else
+    preq = malloc(sizeof(NP2_Thread_sound_req_t));
+#endif  /* NP2_SOUND_WAITQUEUE_RING */
+    preq->create.func = NP2_THREAD_SOUND_CREATE;
+    preq->create.rate = rate;
+    preq->create.ms = ms;
+
+    NP2_WaitQueue_Append(&queSound, &semSound, preq);
+
+    return SUCCESS;
+  } else {
+    return sound_create_dist(rate, ms);
+  }
+}
+
+void sound_destroy(void) {
+  NP2_Thread_sound_req_t* preq;
+
+  if(np2_thread_en) {
+#if defined(NP2_SOUND_WAITQUEUE_RING)
+    preq = NP2_WaitQueue_Ring_GetMemory(&queSound, &semSound);
+#else
+    preq = malloc(sizeof(NP2_Thread_sound_req_t));
+#endif  /* NP2_SOUND_WAITQUEUE_RING */
+    preq->base.func = NP2_THREAD_SOUND_DESTROY;
+    preq->base.param = NULL;
+
+    NP2_WaitQueue_Append(&queSound, &semSound, preq);
+
+    NP2_Sleep_ms(10);
+    NP2_Thread_Destroy(&thSound);
+  } else {
+    sound_destroy_dist();
+  }
+}
+
+void sound_reset(void) {
+  NP2_Thread_sound_req_t* preq;
+
+  if(np2_thread_en) {
+#if defined(NP2_SOUND_WAITQUEUE_RING)
+    preq = NP2_WaitQueue_Ring_GetMemory(&queSound, &semSound);
+#else
+    preq = malloc(sizeof(NP2_Thread_sound_req_t));
+#endif  /* NP2_SOUND_WAITQUEUE_RING */
+    preq->base.func = NP2_THREAD_SOUND_RESET;
+    preq->base.param = NULL;
+
+    NP2_WaitQueue_Append(&queSound, &semSound, preq);
+  } else {
+    sound_reset_dist();
+  }
+}
+
+void sound_changeclock(void) {
+  NP2_Thread_sound_req_t* preq;
+
+  if(np2_thread_en) {
+#if defined(NP2_SOUND_WAITQUEUE_RING)
+    preq = NP2_WaitQueue_Ring_GetMemory(&queSound, &semSound);
+#else
+    preq = malloc(sizeof(NP2_Thread_sound_req_t));
+#endif  /* NP2_SOUND_WAITQUEUE_RING */
+    preq->base.func = NP2_THREAD_SOUND_CHANGECLOCK;
+    preq->base.param = NULL;
+
+    NP2_WaitQueue_Append(&queSound, &semSound, preq);
+  } else {
+    sound_changeclock_dist();
+  }
+}
+
+void sound_streamregist(void *hdl, SOUNDCB cbfn) {
+  NP2_Thread_sound_req_t* preq;
+
+  if(np2_thread_en) {
+#if defined(NP2_SOUND_WAITQUEUE_RING)
+    preq = NP2_WaitQueue_Ring_GetMemory(&queSound, &semSound);
+#else
+    preq = malloc(sizeof(NP2_Thread_sound_req_t));
+#endif  /* NP2_SOUND_WAITQUEUE_RING */
+    preq->streamregist.func = NP2_THREAD_SOUND_STREAMREGIST;
+    preq->streamregist.hdl = hdl;
+    preq->streamregist.cbfn = cbfn;
+
+    NP2_WaitQueue_Append(&queSound, &semSound, preq);
+    NP2_Sleep_ms(10);	/* need? */
+  } else {
+    sound_streamregist_dist(hdl, cbfn);
+  }
+}
+
+void sound_sync(void) {
+  NP2_Thread_sound_req_t* preq;
+
+  if(np2_thread_en) {
+#if defined(NP2_SOUND_WAITQUEUE_RING)
+    preq = NP2_WaitQueue_Ring_GetMemory(&queSound, &semSound);
+#else
+    preq = malloc(sizeof(NP2_Thread_sound_req_t));
+#endif  /* NP2_SOUND_WAITQUEUE_RING */
+    preq->base.func = NP2_THREAD_SOUND_SYNC;
+    preq->base.param = NULL;
+
+    NP2_WaitQueue_Append(&queSound, &semSound, preq);
+  } else {
+    sound_sync_dist();
+  }
+}
+
+const SINT32 *sound_pcmlock(void) {
+  const SINT32 *ret;
+  NP2_Thread_sound_req_t* preq;
+
+  if(np2_thread_en) {
+    if (locks) {
+      TRACEOUT(("sound pcm lock: already locked"));
+      return(NULL);
+    }
+    locks++;
+    ret = sndstream.buffer;
+
+    if (ret) {
+#if defined(NP2_SOUND_WAITQUEUE_RING)
+      preq = NP2_WaitQueue_Ring_GetMemory(&queSound, &semSound);
+#else
+      preq = malloc(sizeof(NP2_Thread_sound_req_t));
+#endif  /* NP2_SOUND_WAITQUEUE_RING */
+      preq->base.func = NP2_THREAD_SOUND_PCMLOCK;
+      preq->base.param = NULL;
+
+      NP2_WaitQueue_Append(&queSound, &semSound, preq);
+    } else {
+      locks--;
+    }
+    return ret;
+  } else {
+    return sound_pcmlock_dist();
+  }
+}
+
+void sound_pcmmix(
+  void PARTSCALL (*fnmix)(SINT16*, const SINT32*, UINT),
+  SINT16* dst,
+  const SINT32* src,
+  UINT size
+) {
+  NP2_Thread_sound_req_t* preq;
+
+  if(np2_thread_en) {
+
+#if defined(NP2_SOUND_WAITQUEUE_RING)
+    preq = NP2_WaitQueue_Ring_GetMemory(&queSound, &semSound);
+#else
+    preq = malloc(sizeof(NP2_Thread_sound_req_t));
+#endif  /* NP2_SOUND_WAITQUEUE_RING */
+    preq->pcmmix.func = NP2_THREAD_SOUND_PCMMIX;
+    preq->pcmmix.fnmix = fnmix;
+    preq->pcmmix.dst = dst;
+    preq->pcmmix.src = src;
+    preq->pcmmix.size = size;
+
+    NP2_WaitQueue_Append(&queSound, &semSound, preq);
+  } else {
+    sound_pcmmix_dist(fnmix, dst, src, size);
+  }
+}
+
+void sound_pcmunlock(const SINT32 *hdl) {
+  NP2_Thread_sound_req_t* preq;
+
+  if(np2_thread_en) {
+    if(hdl) {
+#if defined(NP2_SOUND_WAITQUEUE_RING)
+      preq = NP2_WaitQueue_Ring_GetMemory(&queSound, &semSound);
+#else
+      preq = malloc(sizeof(NP2_Thread_sound_req_t));
+#endif  /* NP2_SOUND_WAITQUEUE_RING */
+      preq->base.func = NP2_THREAD_SOUND_PCMUNLOCK;
+      preq->base.param = NULL;
+
+      NP2_WaitQueue_Append(&queSound, &semSound, preq);
+      locks--;
+    }
+  } else {
+    sound_pcmunlock_dist(hdl);
+  }
+}
+#endif  /* SUPPORT_SOUND_THREAD */
+

@@ -59,7 +59,6 @@ snddrv_num2drv(UINT8 num)
 #include "pccore.h"
 #include "ini.h"
 #include "dosio.h"
-#include "parts.h"
 
 #include "sysmng.h"
 #include "sound.h"
@@ -440,7 +439,7 @@ soundmng_sync(void)
 
 			pcm = sound_pcmlock();
 			if(pcm) {
-				(*fnmix)((SINT16 *)sndbuf->buf, pcm, opna_frame);
+				sound_pcmmix(fnmix, (SINT16 *)sndbuf->buf, pcm, opna_frame);
 			}
 			sound_pcmunlock(pcm);
 			sndbuf->remain = sndbuf->size;
@@ -1245,7 +1244,7 @@ sdlaudio_callback(void *userdata, unsigned char *stream, int len)
 	length = np2min(len, (int)(SNDSZ * 2 * sizeof(SINT16)));
 	src = sound_pcmlock();
 	if (src) {
-		satuation_s16(soundbuf, src, length);
+		sound_pcmmix(&satuation_s16, soundbuf, src, length);
 		sound_pcmunlock(src);
 	}
 	else {

@@ -24,7 +24,10 @@ enum {
 	DID_RATE44,
 	DID_BUFFER,
 	DID_BUFSTR,
-	DID_RESUME
+	DID_RESUME,
+#if defined(SUPPORT_NP2_THREAD)
+	DID_MTHRD,
+#endif	/* SUPPORT_NP2_THREAD */
 };
 
 static const OEMCHAR str_cpu[] = OEMTEXT("CPU");
@@ -88,6 +91,10 @@ static const MENUPRM res_cfg[] = {
 				NULL,									200, 139,  44,  11},
 			{DLGTYPE_CHECK,		DID_RESUME,		MENU_TABSTOP,
 				str_resume,								  6, 164, 128,  11},
+#if defined(SUPPORT_NP2_THREAD)
+			{DLGTYPE_CHECK,		DID_MTHRD,		MENU_TABSTOP,
+				str_mthrd,								  6, 192, 128,  11},
+#endif	/* SUPPORT_NP2_THREAD */
 			{DLGTYPE_BUTTON,	DID_OK,			MENU_TABSTOP,
 				mstr_ok,								197,  11,  52,  15},
 			{DLGTYPE_BUTTON,	DID_CANCEL,		MENU_TABSTOP,
@@ -136,6 +143,10 @@ static const MENUPRM res_cfg[] = {
 				NULL,									228, 165,  48,  13},
 			{DLGTYPE_CHECK,		DID_RESUME,		MENU_TABSTOP,
 				str_resume,								  8, 197, 288,  13},
+#if defined(SUPPORT_NP2_THREAD)
+			{DLGTYPE_CHECK,		DID_MTHRD,		MENU_TABSTOP,
+				str_mthrd,								  8, 217, 288,  11},
+#endif	/* SUPPORT_NP2_THREAD */
 			{DLGTYPE_BUTTON,	DID_OK,			MENU_TABSTOP,
 				mstr_ok,								218,  13,  77,  21},
 			{DLGTYPE_BUTTON,	DID_CANCEL,		MENU_TABSTOP,
@@ -244,6 +255,10 @@ static void dlginit(void) {
 
 	menudlg_setval(DID_RESUME, np2oscfg.resume);
 
+#if defined(SUPPORT_NP2_THREAD)
+	menudlg_setval(DID_MTHRD, np2cfg.usethread);
+#endif	/* SUPPORT_NP2_THREAD */
+
 	setmulstr();
 	setclockstr();
 	setbufstr();
@@ -331,6 +346,14 @@ const OEMCHAR	*str;
 		np2oscfg.resume = (UINT8)val;
 		update |= SYS_UPDATEOSCFG;
 	}
+
+#if defined(SUPPORT_NP2_THREAD)
+	val = menudlg_getval(DID_MTHRD);
+	if (np2cfg.usethread != (UINT8)val) {
+		np2cfg.usethread = (UINT8)val;
+		update |= SYS_UPDATECFG;
+	}
+#endif	/* SUPPORT_NP2_THREAD */
 	sysmng_update(update);
 }
 

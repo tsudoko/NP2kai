@@ -254,6 +254,9 @@ BOOL CConfigureDlg::OnInitDialog()
 
 	CheckDlgButton(IDC_COMFIRM, (np2oscfg.comfirm) ? BST_CHECKED : BST_UNCHECKED);
 	CheckDlgButton(IDC_RESUME, (np2oscfg.resume) ? BST_CHECKED : BST_UNCHECKED);
+#if defined(SUPPORT_NP2_THREAD)
+	CheckDlgButton(IDC_MTHRD, (np2cfg.usethread) ? BST_CHECKED : BST_UNCHECKED);
+#endif
 	CheckDlgButton(IDC_SAVEWINDOWSIZE, (np2oscfg.svscrmul) ? BST_CHECKED : BST_UNCHECKED);
 	SetClock();
 	m_baseClock.SetFocus();
@@ -738,7 +741,16 @@ void CConfigureDlg::OnOK()
 		np2oscfg.resume = bResume;
 		nUpdated |= SYS_UPDATEOSCFG;
 	}
-	
+
+#if defined(SUPPORT_NP2_THREAD)
+	const UINT8 bMThrd = (IsDlgButtonChecked(IDC_MTHRD) != BST_UNCHECKED) ? 1 : 0;
+	if (np2cfg.usethread != bMThrd)
+	{
+		np2cfg.usethread = bMThrd;
+		nUpdated |= SYS_UPDATECFG;
+	}
+#endif	/* SUPPORT_NP2_THREAD */
+
 	const UINT8 bSaveScrnMul = (IsDlgButtonChecked(IDC_SAVEWINDOWSIZE) != BST_UNCHECKED) ? 1 : 0;
 	if (np2oscfg.svscrmul != bSaveScrnMul)
 	{

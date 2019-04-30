@@ -120,6 +120,9 @@ const OEMCHAR np2version[] = OEMTEXT(NP2VER_CORE);
 #if defined(SUPPORT_FMGEN)
 				1,
 #endif	/* SUPPORT_FMGEN */
+#if defined(SUPPORT_NP2_THREAD)
+				0,
+#endif	/* SUPPORT_NP2_THREAD */
 				3, 0, 80, 0, 0, 1,
 
 				0, {OEMTEXT(""), OEMTEXT(""), OEMTEXT(""), OEMTEXT("")},
@@ -188,6 +191,9 @@ const OEMCHAR np2version[] = OEMTEXT(NP2VER_CORE);
 #if defined(SUPPORT_FMGEN)
 	UINT8	enable_fmgen = 0;
 #endif	/* SUPPORT_FMGEN */
+#if defined(SUPPORT_NP2_THREAD)
+	UINT8	np2_thread_en = 0;
+#endif	/* SUPPORT_NP2_THREAD */
 
 #if !defined(__LIBRETRO__) && !defined(NP2_SDL2) && !defined(NP2_X11)
 #ifdef SUPPORT_ASYNC_CPU
@@ -350,6 +356,13 @@ static void sound_term(void) {
 
 void pccore_init(void) {
 
+#if defined(SUPPORT_NP2_THREAD)
+	np2_thread_en = 0;
+	if(np2cfg.usethread == 1) {
+		np2_thread_en = 1;
+	}
+#endif  /* SUPPORT_NP2_THREAD */
+
 	CPU_INITIALIZE();
 	
 	pic_initialize();
@@ -380,6 +393,7 @@ void pccore_init(void) {
 	fmboard_construct();
 	sound_init();
 #endif
+	scrndraw_initialize();
 
 	rs232c_construct();
 	mpu98ii_construct();
@@ -417,6 +431,7 @@ void pccore_term(void) {
 #if defined(SUPPORT_HOSTDRV)
 	hostdrv_deinitialize();
 #endif
+	scrndraw_destroy();
 
 #if !defined(DISABLE_SOUND)
 	sound_term();
@@ -496,9 +511,22 @@ void pccore_reset(void) {
 	if (soundrenewal) {
 		soundrenewal = 0;
 		sound_term();
+#if defined(SUPPORT_NP2_THREAD)
+	np2_thread_en = 0;
+	if(np2cfg.usethread == 1) {
+		np2_thread_en = 1;
+	}
+#endif  /* SUPPORT_NP2_THREAD */
 		sound_init();
 	}
 #endif
+#if defined(SUPPORT_NP2_THREAD)
+	np2_thread_en = 0;
+	if(np2cfg.usethread == 1) {
+		np2_thread_en = 1;
+	}
+#endif  /* SUPPORT_NP2_THREAD */
+
 	ZeroMemory(mem, 0x110000);
 	FillMemory(mem + 0xC0000, 0xE8000 - 0xC0000, 0xff); // なぞ
 	ZeroMemory(mem + VRAM1_B, 0x18000);

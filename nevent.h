@@ -5,6 +5,12 @@
 
 #pragma once
 
+#define NP2_NEVENT_THREAD
+
+#if defined(NP2_NEVENT_THREAD)
+#include "np2_thread.h"
+#endif  /* NP2_NEVENT_THREAD */
+
 enum
 {
 	NEVENT_MAXCLOCK		= 0x400000,
@@ -97,6 +103,9 @@ typedef struct {
 	NEVENTID	level[NEVENT_MAXEVENTS];
 	NEVENTID	waitevent[NEVENT_MAXEVENTS];
 	_NEVENTITEM	item[NEVENT_MAXEVENTS];
+#if defined(SUPPORT_NEVENT_THREAD)
+	NP2_Thread_t* pths[NEVENT_MAXEVENTS];
+#endif  /* SUPPORT_NEVENT_THREAD */
 } _NEVENT, *NEVENT;
 
 

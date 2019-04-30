@@ -19,7 +19,6 @@
 #if defined(SUPPORT_WASAPI)
 #include "soundmng\sdwasapi.h"
 #endif	// defined(SUPPORT_WASAPI)
-#include "common\parts.h"
 #include "sound\sound.h"
 #if defined(VERMOUTH_LIB)
 #include "sound\vermouth\vermouth.h"
@@ -334,7 +333,7 @@ UINT CSoundMng::Get16(SINT16* lpBuffer, UINT nBufferCount)
 	const SINT32* lpSource = ::sound_pcmlock();
 	if (lpSource)
 	{
-		(*m_fnMix)(lpBuffer, lpSource, nBufferCount * 4);
+		::sound_pcmmix(m_fnMix, lpBuffer, lpSource, nBufferCount * 4);
 		::sound_pcmunlock(lpSource);
 		return nBufferCount;
 	}

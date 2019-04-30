@@ -53,7 +53,6 @@ snddrv_num2drv(UINT8 num)
 #include "pccore.h"
 #include "ini.h"
 #include "dosio.h"
-#include "parts.h"
 
 #include "sysmng.h"
 #include "sound.h"
@@ -376,7 +375,7 @@ soundmng_sync(void)
 			sounddrv_unlock();
 
 			pcm = sound_pcmlock();
-			(*fnmix)((SINT16 *)sndbuf->buf, pcm, opna_frame);
+			sound_pcmmix(fnmix, (SINT16 *)sndbuf->buf, pcm, opna_frame);
 			sound_pcmunlock(pcm);
 			sndbuf->remain = sndbuf->size;
 

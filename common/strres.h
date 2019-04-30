@@ -60,6 +60,9 @@ extern const OEMCHAR str_height[];
 
 extern const OEMCHAR str_np2[];
 extern const OEMCHAR str_resume[];
+#if defined(SUPPORT_NP2_THREAD)
+extern const OEMCHAR str_mthrd[];
+#endif	/* SUPPORT_NP2_THREAD */
 
 extern const OEMCHAR str_VM[];
 extern const OEMCHAR str_VX[];

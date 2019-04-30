@@ -49,6 +49,13 @@ static void nevent_execute(void)
 		/* コールバックの実行 */
 		if (item->proc != NULL)
 		{
+#if defined(SUPPORT_NEVENT_THREAD)
+			if(np2_thread_en) {
+				NP2_Thread_Create(&g_nevent.pths[id], item->proc, item);
+			} else {
+				item->proc(item);
+			}
+#else
 			item->proc(item);
 
 			/* 次回に持ち越しのイベントのチェック */
@@ -56,12 +63,37 @@ static void nevent_execute(void)
 			{
 				g_nevent.waitevent[nEvents++] = id;
 			}
+#endif  /* SUPPORT_NEVENT_THREAD */
 		}
 		else {
 			item->flag &= ~(NEVENT_WAIT);
 		}
+#if defined(SUPPORT_NEVENT_THREAD)
+		if(!np2_thread_en) {
+			item->flag &= ~(NEVENT_SETEVENT);
+		}
+#else
 		item->flag &= ~(NEVENT_SETEVENT);
+#endif  /* SUPPORT_NEVENT_THREAD */
 	}
+#if defined(SUPPORT_NEVENT_THREAD)
+	if(np2_thread_en) {
+		for (i = 0; i < g_nevent.waitevents; i++) {
+			id = g_nevent.waitevent[i];
+			item = &g_nevent.item[id];
+
+			NP2_Thread_Wait(&g_nevent.pths[id], NULL);
+			NP2_Thread_Destroy(&g_nevent.pths[id]);
+
+			/* 次回に持ち越しのイベントのチェック */
+			if (item->flag & NEVENT_WAIT)
+			{
+				g_nevent.waitevent[nEvents++] = id;
+			}
+			item->flag &= ~(NEVENT_SETEVENT);
+		}
+	}
+#endif  /* SUPPORT_NEVENT_THREAD */
 	g_nevent.waitevents = nEvents;
 }
 
@@ -140,6 +172,12 @@ void nevent_reset(NEVENTID id)
 			g_nevent.level[i] = g_nevent.level[i + 1];
 		}
 	}
+#if defined(SUPPORT_NEVENT_THREAD)
+	for (i = 0; i < NEVENT_MAXEVENTS; i++) {
+		if(g_nevent.pths[i])
+			NP2_Thread_Destroy(&g_nevent.pths[i]);
+	}
+#endif  /* SUPPORT_NEVENT_THREAD */
 }
 
 void nevent_waitreset(NEVENTID id)

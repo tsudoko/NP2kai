@@ -51,6 +51,9 @@ const OEMCHAR str_height[] = OEMTEXT("height");
 
 const OEMCHAR str_np2[] = OEMTEXT("Neko Project II kai");
 const OEMCHAR str_resume[] = OEMTEXT("Resume");
+#if defined(SUPPORT_NP2_THREAD)
+const OEMCHAR str_mthrd[] = OEMTEXT("Multi thread");
+#endif	/* SUPPORT_NP2_THREAD */
 
 const OEMCHAR str_VM[] = OEMTEXT("VM");
 const OEMCHAR str_VX[] = OEMTEXT("VX");

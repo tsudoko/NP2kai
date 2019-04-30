@@ -22,6 +22,7 @@ extern	UINT8	np2_tram[SURFACE_SIZE];
 extern	UINT8	np2_vram[2][SURFACE_SIZE];
 
 void scrndraw_initialize(void);
+void scrndraw_destroy(void);
 void scrndraw_changepalette(void);
 UINT8 scrndraw_draw(UINT8 update);
 void scrndraw_redraw(void);

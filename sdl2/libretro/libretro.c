@@ -844,6 +844,9 @@ void retro_set_environment(retro_environment_t cb)
       { "np2kai_ExMemory" , "RAM Size (Restart); 3|7|11|13|16|32|64|120|230|1" },
       { "np2kai_Skip16MC" , "Skip over 16MB memcheck; OFF|ON" },
       { "np2kai_FastMC" , "Fast memcheck; OFF|ON" },
+#if defined(SUPPORT_NP2_THREAD)
+      { "np2kai_MT" , "Multi threading; ON|OFF" },
+#endif	/* SUPPORT_NP2_THREAD */
       { "np2kai_gdc" , "GDC; uPD7220|uPD72020" },
       { "np2kai_skipline" , "Skipline Revisions; Full 255 lines|ON|OFF" },
       { "np2kai_realpal" , "Real Palettes; OFF|ON" },
@@ -991,6 +994,19 @@ static void update_variables(void)
       else
          np2cfg.memcheckspeed = 8;
    }
+
+#if defined(SUPPORT_NP2_THREAD)
+   var.key = "np2kai_MT";
+   var.value = NULL;
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      if (strcmp(var.value, "OFF") == 0)
+         np2cfg.usethread = 0;
+      else
+         np2cfg.usethread = 1;
+   }
+#endif	/* SUPPORT_NP2_THREAD */
 
    var.key = "np2kai_skipline";
    var.value = NULL;

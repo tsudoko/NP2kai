@@ -240,3 +240,10 @@ typedef long	FILELEN;
 #ifndef	np2min
 #define	np2min(a,b)	(((a) < (b)) ? (a) : (b))
 #endif
+
+#if defined(SUPPORT_NP2_THREAD)
+//#define SUPPORT_SOUND_THREAD
+#define SUPPORT_SCRNDRAW_THREAD
+#define SUPPORT_NEVENT_THREAD
+#endif  /* SUPPORT_NP2_THREAD */
+

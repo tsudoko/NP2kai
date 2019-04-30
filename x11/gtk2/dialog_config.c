@@ -74,6 +74,9 @@ static GtkWidget *resume_checkbutton;
 #if defined(GCC_CPU_ARCH_IA32)
 static GtkWidget *disablemmx_checkbutton;
 #endif
+#if defined(SUPPORT_NP2_THREAD)
+static GtkWidget *multithread_checkbutton;
+#endif	/* SUPPORT_NP2_THREAD */
 static const char *arch;
 static int rate;
 
@@ -329,6 +332,10 @@ ok_button_clicked(GtkButton *b, gpointer d)
 	gint disablemmx = gtk_toggle_button_get_active(
 	    GTK_TOGGLE_BUTTON(disablemmx_checkbutton));
 #endif
+#if defined(SUPPORT_NP2_THREAD)
+	gint multithread = gtk_toggle_button_get_active(
+	    GTK_TOGGLE_BUTTON(multithread_checkbutton));
+#endif	/* SUPPORT_NP2_THREAD */
 	gint always16bio = gtk_toggle_button_get_active(
 	    GTK_TOGGLE_BUTTON(always16bio_checkbutton));
 	guint bufsize;
@@ -462,6 +469,13 @@ ok_button_clicked(GtkButton *b, gpointer d)
 		renewal |= SYS_UPDATEOSCFG;
 	}
 #endif
+
+#if defined(SUPPORT_NP2_THREAD)
+	if (np2cfg.usethread != multithread) {
+		np2cfg.usethread = multithread;
+		renewal |= SYS_UPDATECFG;
+	}
+#endif	/* SUPPORT_NP2_THREAD */
 
 	if (renewal) {
 		sysmng_update(renewal);
@@ -883,6 +897,16 @@ create_configure_dialog(void)
 		g_signal_emit_by_name(G_OBJECT(disablemmx_checkbutton), "clicked");
 	}
 #endif
+
+#if defined(SUPPORT_NP2_THREAD)
+	/* Multi thread */
+	multithread_checkbutton = gtk_check_button_new_with_label("Multi thread");
+	gtk_widget_show(multithread_checkbutton);
+	gtk_box_pack_start(GTK_BOX(main_widget), multithread_checkbutton, FALSE, FALSE, 1);
+	if (np2cfg.usethread) {
+		g_signal_emit_by_name(G_OBJECT(multithread_checkbutton), "clicked");
+	}
+#endif	/* SUPPORT_NP2_THREAD */
 
 	/*
 	 * OK, Cancel button

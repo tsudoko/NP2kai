@@ -10,6 +10,7 @@
 #endif
 
 #if !defined(DISABLE_SOUND)
+#include "parts.h"
 
 typedef void (SOUNDCALL * SOUNDCB)(void *hdl, SINT32 *pcm, UINT count);
 
@@ -39,6 +40,12 @@ void sound_streamregist(void *hdl, SOUNDCB cbfn);
 void sound_sync(void);
 
 const SINT32 *sound_pcmlock(void);
+void sound_pcmmix(
+  void PARTSCALL (*fnmix)(SINT16*, const SINT32*, UINT),
+  SINT16* dst,
+  const SINT32* src,
+  UINT size
+);
 void sound_pcmunlock(const SINT32 *hdl);
 
 #if defined(SUPPORT_WAVEREC)
@@ -54,6 +61,7 @@ BOOL sound_isrecording(void);
 #else
 
 #define sound_pcmlock()		(NULL)
+#define sound_pcmmix(fnmix, dst, src, size)
 #define sound_pcmunlock(h)
 #define sound_reset()
 #define sound_changeclock()

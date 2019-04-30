@@ -604,6 +604,9 @@ static INITBL iniitem[] = {
 #if defined(SUPPORT_FMGEN)
 	{"USEFMGEN", INITYPE_BOOL,	&np2cfg.usefmgen,	0},
 #endif	/* SUPPORT_FMGEN */
+#if defined(SUPPORT_NP2_THREAD)
+	{"NP2_THRD", INITYPE_BOOL,	&np2cfg.usethread,	0},
+#endif	/* SUPPORT_NP2_THREAD */
 
 	{"Seek_Snd", INITYPE_BOOL,	&np2cfg.MOTOR,		0},
 	{"Seek_Vol", INIMAX_UINT8,	&np2cfg.MOTORVOL,	100},
