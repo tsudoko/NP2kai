@@ -374,10 +374,7 @@ static void* NP2_ScrnDraw(void* param) {
       break;
     }
 
-#if !defined(NP2_SCRNDRAW_WAITQUEUE_RING)
-    if(queScrnDraw.list.type == NP2_WAITQUEUE_TYPE_LIST)
-      free(req);
-#endif  /* NP2_SCRNDRAW_WAITQUEUE_RING */
+    free(req);
   }
 
   NP2_WaitQueue_Destroy(&queScrnDraw);
@@ -392,11 +389,7 @@ void scrndraw_updateallline(void) {
   NP2_Thread_scrndraw_req_t* preq;
 
   if(np2_thread_en) {
-#if defined(NP2_SCRNDRAW_WAITQUEUE_RING)
-    preq = NP2_WaitQueue_Ring_GetMemory(&queScrnDraw, &semScrnDraw);
-#else
     preq = malloc(sizeof(NP2_Thread_scrndraw_req_t));
-#endif  /* NP2_SCRNDRAW_WAITQUEUE_RING */
     preq->base.func = NP2_THREAD_SCRNDRAW_UPDATEALLLINE;
     preq->base.param = NULL;
 
@@ -413,11 +406,7 @@ void scrndraw_initialize(void) {
     NP2_Thread_Create(&thScrnDraw, NP2_ScrnDraw, NULL);
     NP2_Sleep_ms(10);
 
-#if defined(NP2_SCRNDRAW_WAITQUEUE_RING)
-    preq = NP2_WaitQueue_Ring_GetMemory(&queScrnDraw, &semScrnDraw);
-#else
     preq = malloc(sizeof(NP2_Thread_scrndraw_req_t));
-#endif  /* NP2_SCRNDRAW_WAITQUEUE_RING */
     preq->base.func = NP2_THREAD_SCRNDRAW_INITIALIZE;
     preq->base.param = NULL;
 
@@ -431,11 +420,7 @@ void scrndraw_destroy(void) {
   NP2_Thread_scrndraw_req_t* preq;
 
   if(np2_thread_en) {
-#if defined(NP2_SCRNDRAW_WAITQUEUE_RING)
-    preq = NP2_WaitQueue_Ring_GetMemory(&queScrnDraw, &semScrnDraw);
-#else
     preq = malloc(sizeof(NP2_Thread_scrndraw_req_t));
-#endif  /* NP2_SCRNDRAW_WAITQUEUE_RING */
     preq->base.func = NP2_THREAD_SCRNDRAW_DESTROY;
     preq->base.param = NULL;
 
@@ -450,11 +435,7 @@ void scrndraw_changepalette(void) {
   NP2_Thread_scrndraw_req_t* preq;
 
   if(np2_thread_en) {
-#if defined(NP2_SCRNDRAW_WAITQUEUE_RING)
-    preq = NP2_WaitQueue_Ring_GetMemory(&queScrnDraw, &semScrnDraw);
-#else
     preq = malloc(sizeof(NP2_Thread_scrndraw_req_t));
-#endif  /* NP2_SCRNDRAW_WAITQUEUE_RING */
     preq->base.func = NP2_THREAD_SCRNDRAW_CHANGEPALETTE;
     preq->base.param = NULL;
 
@@ -468,11 +449,7 @@ UINT8 scrndraw_draw(UINT8 redraw) {
   NP2_Thread_scrndraw_req_t* preq;
 
   if(np2_thread_en) {
-#if defined(NP2_SCRNDRAW_WAITQUEUE_RING)
-    preq = NP2_WaitQueue_Ring_GetMemory(&queScrnDraw, &semScrnDraw);
-#else
     preq = malloc(sizeof(NP2_Thread_scrndraw_req_t));
-#endif  /* NP2_SCRNDRAW_WAITQUEUE_RING */
     preq->draw.func = NP2_THREAD_SCRNDRAW_DRAW;
     preq->draw.redraw = redraw;
 
@@ -488,11 +465,7 @@ void scrndraw_redraw(void) {
   NP2_Thread_scrndraw_req_t* preq;
 
   if(np2_thread_en) {
-#if defined(NP2_SCRNDRAW_WAITQUEUE_RING)
-    preq = NP2_WaitQueue_Ring_GetMemory(&queScrnDraw, &semScrnDraw);
-#else
     preq = malloc(sizeof(NP2_Thread_scrndraw_req_t));
-#endif  /* NP2_SCRNDRAW_WAITQUEUE_RING */
     preq->base.func = NP2_THREAD_SCRNDRAW_REDRAW;
     preq->base.param = NULL;
 

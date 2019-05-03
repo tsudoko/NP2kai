@@ -624,10 +624,7 @@ static void* NP2_Sound(void* param) {
       break;
     }
 
-#if !defined(NP2_SOUND_WAITQUEUE_RING)
-    if(queSound.list.type == NP2_WAITQUEUE_TYPE_LIST)
-      free(req);
-#endif  /* NP2_SOUND_WAITQUEUE_RING */
+    free(req);
   }
 
   NP2_WaitQueue_Destroy(&queSound);
@@ -643,11 +640,7 @@ BRESULT sound_recstart(const OEMCHAR *filename) {
   NP2_Thread_sound_req_t* preq;
 
   if(np2_thread_en) {
-#if defined(NP2_SOUND_WAITQUEUE_RING)
-    preq = NP2_WaitQueue_Ring_GetMemory(&queSound, &semSound);
-#else
     preq = malloc(sizeof(NP2_Thread_sound_req_t));
-#endif  /* NP2_SOUND_WAITQUEUE_RING */
     preq->recstart.func = NP2_THREAD_SOUND_SOUND_RECSTART;
     strcpy(preq->recstart.filename, filename);
 
@@ -663,11 +656,7 @@ void sound_recstop(void) {
   NP2_Thread_sound_req_t* preq;
 
   if(np2_thread_en) {
-#if defined(NP2_SOUND_WAITQUEUE_RING)
-    preq = NP2_WaitQueue_Ring_GetMemory(&queSound, &semSound);
-#else
     preq = malloc(sizeof(NP2_Thread_sound_req_t));
-#endif  /* NP2_SOUND_WAITQUEUE_RING */
     preq->base.func = NP2_THREAD_SOUND_SOUND_RECSTOP;
     preq->base.param = NULL;
 
@@ -685,11 +674,7 @@ BRESULT sound_create(UINT rate, UINT ms) {
     NP2_Thread_Create(&thSound, NP2_Sound, NULL);
     NP2_Sleep_ms(10);
 
-#if defined(NP2_SOUND_WAITQUEUE_RING)
-    preq = NP2_WaitQueue_Ring_GetMemory(&queSound, &semSound);
-#else
     preq = malloc(sizeof(NP2_Thread_sound_req_t));
-#endif  /* NP2_SOUND_WAITQUEUE_RING */
     preq->create.func = NP2_THREAD_SOUND_CREATE;
     preq->create.rate = rate;
     preq->create.ms = ms;
@@ -706,11 +691,7 @@ void sound_destroy(void) {
   NP2_Thread_sound_req_t* preq;
 
   if(np2_thread_en) {
-#if defined(NP2_SOUND_WAITQUEUE_RING)
-    preq = NP2_WaitQueue_Ring_GetMemory(&queSound, &semSound);
-#else
     preq = malloc(sizeof(NP2_Thread_sound_req_t));
-#endif  /* NP2_SOUND_WAITQUEUE_RING */
     preq->base.func = NP2_THREAD_SOUND_DESTROY;
     preq->base.param = NULL;
 
@@ -727,11 +708,7 @@ void sound_reset(void) {
   NP2_Thread_sound_req_t* preq;
 
   if(np2_thread_en) {
-#if defined(NP2_SOUND_WAITQUEUE_RING)
-    preq = NP2_WaitQueue_Ring_GetMemory(&queSound, &semSound);
-#else
     preq = malloc(sizeof(NP2_Thread_sound_req_t));
-#endif  /* NP2_SOUND_WAITQUEUE_RING */
     preq->base.func = NP2_THREAD_SOUND_RESET;
     preq->base.param = NULL;
 
@@ -745,11 +722,7 @@ void sound_changeclock(void) {
   NP2_Thread_sound_req_t* preq;
 
   if(np2_thread_en) {
-#if defined(NP2_SOUND_WAITQUEUE_RING)
-    preq = NP2_WaitQueue_Ring_GetMemory(&queSound, &semSound);
-#else
     preq = malloc(sizeof(NP2_Thread_sound_req_t));
-#endif  /* NP2_SOUND_WAITQUEUE_RING */
     preq->base.func = NP2_THREAD_SOUND_CHANGECLOCK;
     preq->base.param = NULL;
 
@@ -763,11 +736,7 @@ void sound_streamregist(void *hdl, SOUNDCB cbfn) {
   NP2_Thread_sound_req_t* preq;
 
   if(np2_thread_en) {
-#if defined(NP2_SOUND_WAITQUEUE_RING)
-    preq = NP2_WaitQueue_Ring_GetMemory(&queSound, &semSound);
-#else
     preq = malloc(sizeof(NP2_Thread_sound_req_t));
-#endif  /* NP2_SOUND_WAITQUEUE_RING */
     preq->streamregist.func = NP2_THREAD_SOUND_STREAMREGIST;
     preq->streamregist.hdl = hdl;
     preq->streamregist.cbfn = cbfn;
@@ -783,11 +752,7 @@ void sound_sync(void) {
   NP2_Thread_sound_req_t* preq;
 
   if(np2_thread_en) {
-#if defined(NP2_SOUND_WAITQUEUE_RING)
-    preq = NP2_WaitQueue_Ring_GetMemory(&queSound, &semSound);
-#else
     preq = malloc(sizeof(NP2_Thread_sound_req_t));
-#endif  /* NP2_SOUND_WAITQUEUE_RING */
     preq->base.func = NP2_THREAD_SOUND_SYNC;
     preq->base.param = NULL;
 
@@ -810,11 +775,7 @@ const SINT32 *sound_pcmlock(void) {
     ret = sndstream.buffer;
 
     if (ret) {
-#if defined(NP2_SOUND_WAITQUEUE_RING)
-      preq = NP2_WaitQueue_Ring_GetMemory(&queSound, &semSound);
-#else
       preq = malloc(sizeof(NP2_Thread_sound_req_t));
-#endif  /* NP2_SOUND_WAITQUEUE_RING */
       preq->base.func = NP2_THREAD_SOUND_PCMLOCK;
       preq->base.param = NULL;
 
@@ -838,11 +799,7 @@ void sound_pcmmix(
 
   if(np2_thread_en) {
 
-#if defined(NP2_SOUND_WAITQUEUE_RING)
-    preq = NP2_WaitQueue_Ring_GetMemory(&queSound, &semSound);
-#else
     preq = malloc(sizeof(NP2_Thread_sound_req_t));
-#endif  /* NP2_SOUND_WAITQUEUE_RING */
     preq->pcmmix.func = NP2_THREAD_SOUND_PCMMIX;
     preq->pcmmix.fnmix = fnmix;
     preq->pcmmix.dst = dst;
@@ -860,11 +817,7 @@ void sound_pcmunlock(const SINT32 *hdl) {
 
   if(np2_thread_en) {
     if(hdl) {
-#if defined(NP2_SOUND_WAITQUEUE_RING)
-      preq = NP2_WaitQueue_Ring_GetMemory(&queSound, &semSound);
-#else
       preq = malloc(sizeof(NP2_Thread_sound_req_t));
-#endif  /* NP2_SOUND_WAITQUEUE_RING */
       preq->base.func = NP2_THREAD_SOUND_PCMUNLOCK;
       preq->base.param = NULL;
 
