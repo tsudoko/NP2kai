@@ -567,7 +567,7 @@ static void* NP2_Sound(void* param) {
   (void)param;
   NP2_Semaphore_Create(&semSound, 1);
 #if defined(NP2_SOUND_WAITQUEUE_RING)
-  NP2_WaitQueue_Ring_Create(&queSound, sizeof(NP2_Thread_sound_req_t), 256);
+  NP2_WaitQueue_Ring_Create(&queSound, 256);
 #else
   NP2_WaitQueue_List_Create(&queSound);
 #endif  /* NP2_SOUND_WAITQUEUE_RING */

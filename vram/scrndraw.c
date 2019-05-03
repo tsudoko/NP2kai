@@ -343,7 +343,7 @@ static void* NP2_ScrnDraw(void* param) {
   (void)param;
   NP2_Semaphore_Create(&semScrnDraw, 1);
 #if defined(NP2_SCRNDRAW_WAITQUEUE_RING)
-  NP2_WaitQueue_Ring_Create(&queScrnDraw, sizeof(NP2_Thread_scrndraw_req_t), 16);
+  NP2_WaitQueue_Ring_Create(&queScrnDraw, 16);
 #else
   NP2_WaitQueue_List_Create(&queScrnDraw);
 #endif  /* NP2_SCRNDRAW_WAITQUEUE_RING */
