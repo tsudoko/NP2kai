@@ -136,7 +136,11 @@ namespace FM
 
 	private:
 		virtual void Intr(bool) {}
-	
+
+	protected:
+		void	TimerA(OPM* obj);
+		void	TimerB(OPM* obj);
+
 	private:
 		enum
 		{
@@ -146,7 +150,6 @@ namespace FM
 		void	SetStatus(uint bit);
 		void	ResetStatus(uint bit);
 		void	SetParameter(uint addr, uint data);
-		void	TimerA();
 		void	RebuildTimeTable();
 		void	MixSub(int activech, ISample**);
 		void	MixSubL(int activech, ISample**);

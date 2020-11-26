@@ -157,13 +157,20 @@ void OPNBase::SetVolumeFM(int db)
 }
 
 //	タイマー時間処理
-void OPNBase::TimerA()
+void OPNBase::TimerA(OPNBase* obj)
 {
+	(void)obj;
+
 	if (regtc & 0x80)
 	{
 		csmch->KeyControl(0x00);
 		csmch->KeyControl(0x0f);
 	}
+}
+
+void OPNBase::TimerB(OPNBase* obj)
+{
+	(void)obj;
 }
 
 void OPNBase::DataSave(struct OPNBaseData* data) {

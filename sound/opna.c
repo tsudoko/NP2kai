@@ -18,7 +18,7 @@
 #if defined(SUPPORT_FMGEN)
 #include <math.h>
 #include <sound/fmgen/fmgen_fmgwrap.h>
-#endif	/* SUPPORT_FMGEN */
+#endif
 
 static void writeRegister(POPNA opna, UINT nAddress, REG8 cData);
 static void writeExtendedRegister(POPNA opna, UINT nAddress, REG8 cData);
@@ -80,7 +80,7 @@ void opna_fmgen_setallvolumeRhythmTotal_linear(int lvol)
 		OPNA_SetVolumeRhythmTotal(opnalist[i]->fmgen, (int)LINEAR2DB((double)lvol / 128));
 	}
 }
-#endif	/* SUPPORT_FMGEN */
+#endif
 
 /**
  * Initialize instance
@@ -102,7 +102,7 @@ void opna_destruct(POPNA opna)
 	if(enable_fmgen) {
 		if(opna->fmgen) OPNA_Destruct(opna->fmgen);
 	}
-#endif	/* SUPPORT_FMGEN */
+#endif
 }
 
 /**
@@ -128,21 +128,12 @@ void opna_reset(POPNA opna, REG8 cCaps)
 		OPNA_SetVolumeADPCM(opna->fmgen, pow((double)np2cfg.vol_pcm / 128, 0.12) * (20 + 192) - 192);
 		OPNA_SetVolumeRhythmTotal(opna->fmgen, pow((double)np2cfg.vol_rhythm / 128, 0.12) * (20 + 192) - 192);
 	}
-#endif	/* SUPPORT_FMGEN */
+#endif
 
 	memset(&opna->s, 0, sizeof(opna->s));
 	opna->s.adpcmmask = ~(0x1c);
 	opna->s.cCaps = cCaps;
 	opna->s.irq = 0xff;
-	opna->s.reg[0x07] = 0xbf;
-	opna->s.reg[0x0e] = 0xff;
-	opna->s.reg[0x0f] = 0xff;
-	opna->s.reg[0xff] = 0x01;
-	for (i = 0; i < 2; i++)
-	{
-		memset(opna->s.reg + (i * 0x100) + 0x30, 0xff, 0x60);
-		memset(opna->s.reg + (i * 0x100) + 0xb4, 0xc0, 0x04);
-	}
 	for (i = 0; i < 7; i++)
 	{
 		opna->s.keyreg[i] = i & 7;
@@ -163,30 +154,45 @@ void opna_reset(POPNA opna, REG8 cCaps)
 				OPNA_SetReg(opna->fmgen, (i * 0x100) + 0xb4 + j, 0xc0);
 			}
 		}
+	} else {
+#endif
+	opna->s.reg[0x07] = 0xbf;
+	opna->s.reg[0x0e] = 0xff;
+	opna->s.reg[0x0f] = 0xff;
+	opna->s.reg[0xff] = 0x01;
+	for (i = 0; i < 2; i++)
+	{
+		memset(opna->s.reg + (i * 0x100) + 0x30, 0xff, 0x60);
+		memset(opna->s.reg + (i * 0x100) + 0xb4, 0xc0, 0x04);
 	}
-#endif	/* SUPPORT_FMGEN */
 
 	opngen_reset(&opna->opngen);
 	psggen_reset(&opna->psg);
 	rhythm_reset(&opna->rhythm);
 	adpcm_reset(&opna->adpcm);
+#if defined(SUPPORT_FMGEN)
+	}
+#endif
 
 	
 	// 音量初期化
-	opngen_setvol(np2cfg.vol_fm);
-	psggen_setvol(np2cfg.vol_ssg);
-	rhythm_setvol(np2cfg.vol_rhythm);
 #if defined(SUPPORT_FMGEN)
 	if(np2cfg.usefmgen) {
 		opna_fmgen_setallvolumeFM_linear(np2cfg.vol_fm);
 		opna_fmgen_setallvolumePSG_linear(np2cfg.vol_ssg);
 		opna_fmgen_setallvolumeRhythmTotal_linear(np2cfg.vol_rhythm);
-	}
-#endif	/* SUPPORT_FMGEN */
+	} else {
+#endif
+	opngen_setvol(np2cfg.vol_fm);
+	psggen_setvol(np2cfg.vol_ssg);
+	rhythm_setvol(np2cfg.vol_rhythm);
 	for (UINT i = 0; i < NELEMENTS(g_opna); i++)
 	{
 		rhythm_update(&g_opna[i].rhythm);
 	}
+#if defined(SUPPORT_FMGEN)
+	}
+#endif
 }
 
 /**
@@ -198,44 +204,6 @@ static void restore(POPNA opna)
 	UINT i;
 
 	// FM
-	writeRegister(opna, 0x22, opna->s.reg[0x22]);
-	for (i = 0x30; i < 0xa0; i++)
-	{
-		if ((i & 3) == 3)
-		{
-			continue;
-		}
-		writeRegister(opna, i, opna->s.reg[i]);
-		writeExtendedRegister(opna, i, opna->s.reg[i + 0x100]);
-	}
-	for (i = 0xb0; i < 0xb8; i++)
-	{
-		if ((i & 3) == 3)
-		{
-			continue;
-		}
-		writeRegister(opna, i, opna->s.reg[i]);
-		writeExtendedRegister(opna, i, opna->s.reg[i + 0x100]);
-	}
-	for (i = 0; i < 8; i++)
-	{
-		if ((i & 3) == 3)
-		{
-			continue;
-		}
-		writeRegister(opna, i + 0xa4, opna->s.reg[i + 0xa4]);
-		writeRegister(opna, i + 0xa0, opna->s.reg[i + 0xa0]);
-		writeExtendedRegister(opna, i + 0xa4, opna->s.reg[i + 0x1a4]);
-		writeExtendedRegister(opna, i + 0xa0, opna->s.reg[i + 0x1a0]);
-	}
-	for (i = 0; i < 8; i++)
-	{
-		if ((i & 3) == 3)
-		{
-			continue;
-		}
-		writeRegister(opna, 0x28, opna->s.keyreg[i]);
-	}
 #if defined(SUPPORT_FMGEN)
 	if(enable_fmgen) {
 		OPNA_SetReg(opna->fmgen, 0x22, opna->s.reg[0x22]);
@@ -276,29 +244,68 @@ static void restore(POPNA opna)
 			}
 			OPNA_SetReg(opna->fmgen, 0x28, opna->s.keyreg[i]);
 		}
+	} else {
+#endif
+	writeRegister(opna, 0x22, opna->s.reg[0x22]);
+	for (i = 0x30; i < 0xa0; i++)
+	{
+		if ((i & 3) == 3)
+		{
+			continue;
+		}
+		writeRegister(opna, i, opna->s.reg[i]);
+		writeExtendedRegister(opna, i, opna->s.reg[i + 0x100]);
 	}
-#endif	/* SUPPORT_FMGEN */
+	for (i = 0xb0; i < 0xb8; i++)
+	{
+		if ((i & 3) == 3)
+		{
+			continue;
+		}
+		writeRegister(opna, i, opna->s.reg[i]);
+		writeExtendedRegister(opna, i, opna->s.reg[i + 0x100]);
+	}
+	for (i = 0; i < 8; i++)
+	{
+		if ((i & 3) == 3)
+		{
+			continue;
+		}
+		writeRegister(opna, i + 0xa4, opna->s.reg[i + 0xa4]);
+		writeRegister(opna, i + 0xa0, opna->s.reg[i + 0xa0]);
+		writeExtendedRegister(opna, i + 0xa4, opna->s.reg[i + 0x1a4]);
+		writeExtendedRegister(opna, i + 0xa0, opna->s.reg[i + 0x1a0]);
+	}
+	for (i = 0; i < 8; i++)
+	{
+		if ((i & 3) == 3)
+		{
+			continue;
+		}
+		writeRegister(opna, 0x28, opna->s.keyreg[i]);
+	}
+#if defined(SUPPORT_FMGEN)
+	}
+#endif
 
 	// PSG
-	for (i = 0; i < 0x10; i++)
-	{
-		writeRegister(opna, i, opna->s.reg[i]);
-	}
 #if defined(SUPPORT_FMGEN)
 	if(enable_fmgen) {
 		for (i = 0; i < 0x10; i++)
 		{
 			OPNA_SetReg(opna->fmgen, i, opna->s.reg[i]);
 		}
-	}
-#endif	/* SUPPORT_FMGEN */
-
-	// Rhythm
-	writeRegister(opna, 0x11, opna->s.reg[0x11]);
-	for (i = 0x18; i < 0x1e; i++)
+	} else {
+#endif
+	for (i = 0; i < 0x10; i++)
 	{
 		writeRegister(opna, i, opna->s.reg[i]);
 	}
+#if defined(SUPPORT_FMGEN)
+	}
+#endif
+
+	// Rhythm
 #if defined(SUPPORT_FMGEN)
 	if(enable_fmgen) {
 		OPNA_SetReg(opna->fmgen, 0x11, opna->s.reg[0x11]);
@@ -306,8 +313,16 @@ static void restore(POPNA opna)
 		{
 			OPNA_SetReg(opna->fmgen, i, opna->s.reg[i]);
 		}
+	} else {
+#endif
+	writeRegister(opna, 0x11, opna->s.reg[0x11]);
+	for (i = 0x18; i < 0x1e; i++)
+	{
+		writeRegister(opna, i, opna->s.reg[i]);
 	}
-#endif	/* SUPPORT_FMGEN */
+#if defined(SUPPORT_FMGEN)
+	}
+#endif
 }
 
 /**
@@ -331,7 +346,7 @@ void opna_bind(POPNA opna)
 	if(enable_fmgen) {
 		sound_streamregist(opna->fmgen, (SOUNDCB)OPNA_Mix);
 	} else {
-#endif	/* SUPPORT_FMGEN */
+#endif
 	if (cCaps & OPNA_HAS_PSG)
 	{
 		sound_streamregist(&opna->psg, (SOUNDCB)psggen_getpcm);
@@ -354,7 +369,7 @@ void opna_bind(POPNA opna)
 	}
 #if defined(SUPPORT_FMGEN)
 	}
-#endif	/* SUPPORT_FMGEN */
+#endif
 }
 
 /**
@@ -364,11 +379,19 @@ void opna_bind(POPNA opna)
  */
 REG8 opna_readStatus(POPNA opna)
 {
+#if defined(SUPPORT_FMGEN)
+	if(enable_fmgen) {
+		return (REG8)OPNA_ReadStatus(opna->fmgen);
+	} else {
+#endif
 	if (opna->s.cCaps & OPNA_HAS_TIMER)
 	{
 		return opna->s.status;
 	}
 	return 0;
+#if defined(SUPPORT_FMGEN)
+	}
+#endif
 }
 
 /**
@@ -378,6 +401,11 @@ REG8 opna_readStatus(POPNA opna)
  */
 REG8 opna_readExtendedStatus(POPNA opna)
 {
+#if defined(SUPPORT_FMGEN)
+	if(enable_fmgen) {
+		return (REG8)OPNA_ReadStatusEx(opna->fmgen);
+	} else {
+#endif
 	const UINT8 cCaps = opna->s.cCaps;
 	REG8 ret = 0;
 
@@ -396,6 +424,9 @@ REG8 opna_readExtendedStatus(POPNA opna)
 	}
 
 	return ret;
+#if defined(SUPPORT_FMGEN)
+	}
+#endif
 }
 
 /**
@@ -414,11 +445,6 @@ void opna_writeRegister(POPNA opna, UINT nAddress, REG8 cData)
 	}
 
 	writeRegister(opna, nAddress, cData);
-#if defined(SUPPORT_FMGEN)
-	if(enable_fmgen) {
-		OPNA_SetReg(opna->fmgen, nAddress, cData);
-	}
-#endif	/* SUPPORT_FMGEN */
 }
 
 /**
@@ -429,6 +455,11 @@ void opna_writeRegister(POPNA opna, UINT nAddress, REG8 cData)
  */
 static void writeRegister(POPNA opna, UINT nAddress, REG8 cData)
 {
+#if defined(SUPPORT_FMGEN)
+	if(enable_fmgen) {
+		OPNA_SetReg(opna->fmgen, nAddress, cData);
+	} else {
+#endif
 	const UINT8 cCaps = opna->s.cCaps;
 	REG8 cChannel;
 
@@ -504,6 +535,9 @@ static void writeRegister(POPNA opna, UINT nAddress, REG8 cData)
 		}
 		opngen_setreg(&opna->opngen, 0, nAddress, cData);
 	}
+#if defined(SUPPORT_FMGEN)
+	}
+#endif
 }
 
 /**
@@ -522,11 +556,6 @@ void opna_writeExtendedRegister(POPNA opna, UINT nAddress, REG8 cData)
 	}
 
 	writeExtendedRegister(opna, nAddress, cData);
-#if defined(SUPPORT_FMGEN)
-	if(enable_fmgen) {
-		OPNA_SetReg(opna->fmgen, nAddress + 0x100, cData);
-	}
-#endif	/* SUPPORT_FMGEN */
 }
 
 /**
@@ -539,6 +568,11 @@ static void writeExtendedRegister(POPNA opna, UINT nAddress, REG8 cData)
 {
 	const UINT8 cCaps = opna->s.cCaps;
 
+#if defined(SUPPORT_FMGEN)
+	if(enable_fmgen) {
+		OPNA_SetReg(opna->fmgen, nAddress + 0x100, cData);
+	} else {
+#endif
 	if (nAddress < 0x12)
 	{
 		if (cCaps & OPNA_HAS_ADPCM)
@@ -583,6 +617,9 @@ static void writeExtendedRegister(POPNA opna, UINT nAddress, REG8 cData)
 			opngen_setreg(&opna->opngen, 3, nAddress, cData);
 		}
 	}
+#if defined(SUPPORT_FMGEN)
+	}
+#endif
 }
 
 /**
@@ -593,6 +630,11 @@ static void writeExtendedRegister(POPNA opna, UINT nAddress, REG8 cData)
  */
 REG8 opna_readRegister(POPNA opna, UINT nAddress)
 {
+#if defined(SUPPORT_FMGEN)
+	if(enable_fmgen) {
+		return (REG8)OPNA_GetReg(opna->fmgen, nAddress);
+	} else {
+#endif
 	if (nAddress < 0x10)
 	{
 		if (!(opna->s.cCaps & OPNA_HAS_PSG))
@@ -612,6 +654,9 @@ REG8 opna_readRegister(POPNA opna, UINT nAddress)
 		return (opna->s.cCaps & OPNA_HAS_RHYTHM) ? 1 : 0;
 	}
 	return opna->s.reg[nAddress];
+#if defined(SUPPORT_FMGEN)
+	}
+#endif
 }
 
 /**
@@ -622,11 +667,19 @@ REG8 opna_readRegister(POPNA opna, UINT nAddress)
  */
 REG8 opna_readExtendedRegister(POPNA opna, UINT nAddress)
 {
+#if defined(SUPPORT_FMGEN)
+	if(enable_fmgen) {
+		return (REG8)OPNA_GetReg(opna->fmgen, nAddress + 0x100);
+	} else {
+#endif
 	if ((opna->s.cCaps & OPNA_HAS_ADPCM) && (nAddress == 0x08))
 	{
 		return adpcm_readsample(&opna->adpcm);
 	}
 	return opna->s.reg[nAddress + 0x100];
+#if defined(SUPPORT_FMGEN)
+	}
+#endif
 }
 
 /**
@@ -637,7 +690,15 @@ REG8 opna_readExtendedRegister(POPNA opna, UINT nAddress)
  */
 REG8 opna_read3438ExtRegister(POPNA opna, UINT nAddress)
 {
+#if defined(SUPPORT_FMGEN)
+	if(enable_fmgen) {
+		return (REG8)OPNA_GetReg(opna->fmgen, nAddress);
+	} else {
+#endif
 	return opna->s.reg[nAddress];
+#if defined(SUPPORT_FMGEN)
+	}
+#endif
 }
 
 
@@ -664,7 +725,7 @@ int opna_sfsave(PCOPNA opna, STFLAGH sfh, const SFENTRY *tbl)
 		ret |= statflag_write(sfh, buf, fmgen_opnadata_size);
 		free(buf);
 	}
-#endif	/* SUPPORT_FMGEN */
+#endif
 	if (opna->s.cCaps & OPNA_HAS_ADPCM)
 	{
 		ret |= statflag_write(sfh, &opna->adpcm, sizeof(opna->adpcm));
@@ -697,7 +758,7 @@ int opna_sfload(POPNA opna, STFLAGH sfh, const SFENTRY *tbl)
 			OPNA_LoadRhythmSample(opna->fmgen, path);
 		}
 	}
-#endif	/* SUPPORT_FMGEN */
+#endif
 	if (opna->s.cCaps & OPNA_HAS_ADPCM)
 	{
 		ret |= statflag_read(sfh, &opna->adpcm, sizeof(opna->adpcm));

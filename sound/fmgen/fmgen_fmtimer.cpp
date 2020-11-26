@@ -64,7 +64,7 @@ bool Timer::Count(int32 us)
 		if (timera_count <= 0)
 		{
 			event = true;
-			TimerA();
+			TimerA(this);
 
 			while (timera_count <= 0)
 				timera_count += timera;
@@ -79,6 +79,8 @@ bool Timer::Count(int32 us)
 		if (timerb_count <= 0)
 		{
 			event = true;
+			TimerB(this);
+
 			while (timerb_count <= 0)
 				timerb_count += timerb;
 			
@@ -169,7 +171,7 @@ bool Timer::Count(int32 us)
 		if (timera_count <= 0)
 		{
 			event = true;
-			TimerA();
+			TimerA(this);
 
 			while (timera_count <= 0)
 				timera_count += timera;
@@ -184,6 +186,8 @@ bool Timer::Count(int32 us)
 		if (timerb_count <= 0)
 		{
 			event = true;
+			TimerB(this);
+
 			while (timerb_count <= 0)
 				timerb_count += timerb;
 			

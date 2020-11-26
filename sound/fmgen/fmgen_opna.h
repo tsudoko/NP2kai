@@ -124,8 +124,11 @@ namespace FM
 
 		static  uint32 lfotable[8];
 	
+	protected:
+		void	TimerA(OPNBase* obj);
+		void	TimerB(OPNBase* obj);
+
 	private:
-		void	TimerA();
 		uint8	prescale;
 		
 	protected:
@@ -133,7 +136,7 @@ namespace FM
 		PSG		psg;
 	};
 
-	//	OPN2 Base ------------------------------------------------------
+	//	OPNA Base ------------------------------------------------------
 	struct OPNABaseData {
 		struct OPNBaseData opnbase;
 		uint8	pan[6];

@@ -605,6 +605,10 @@ int np2_main(int argc, char *argv[]) {
 
 	TRACEINIT();
 
+#if defined(SUPPORT_SDL_AUDIO) || defined(SUPPORT_SDL_MIXER)
+	SDL_Init(0);
+#endif
+
 	if (fontmng_init() != SUCCESS) {
 		goto np2main_err2;
 	}

@@ -63,7 +63,7 @@ struct tagOpna
 #if defined(SUPPORT_FMGEN)
 	UINT8 usefmgen;
 	void* fmgen;
-#endif	/* SUPPORT_FMGEN */
+#endif
 };
 
 typedef struct tagOpna OPNA;
@@ -98,7 +98,7 @@ void opna_fmgen_setallvolumeFM_linear(int lvol);
 void opna_fmgen_setallvolumePSG_linear(int lvol);
 void opna_fmgen_setallvolumeADPCM_linear(int lvol);
 void opna_fmgen_setallvolumeRhythmTotal_linear(int lvol);
-#endif	/* SUPPORT_FMGEN */
+#endif
 
 #ifdef __cplusplus
 }

@@ -45,7 +45,8 @@ namespace FM
 		uint8	regtc;
 	
 	private:
-		virtual void TimerA() {}
+		virtual void TimerA(Timer* obj) {}
+		virtual void TimerB(Timer* obj) {}
 		uint8	regta[2];
 		
 		int32	timera, timera_count;

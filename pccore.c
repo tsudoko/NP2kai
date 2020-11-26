@@ -397,6 +397,9 @@ static void sound_init(void)
 	beep_setvol(np2cfg.BEEP_VOL);
 	tms3631_initialize(rate);
 	tms3631_setvol(np2cfg.vol14);
+#if defined(SUPPORT_FMGEN)
+	if(!enable_fmgen) {
+#endif
 	opngen_initialize(rate);
 	opngen_setvol(np2cfg.vol_fm);
 	psggen_initialize(rate);
@@ -407,6 +410,9 @@ static void sound_init(void)
 	adpcm_setvol(np2cfg.vol_adpcm);
 	pcm86gen_initialize(rate);
 	pcm86gen_setvol(np2cfg.vol_pcm);
+#if defined(SUPPORT_FMGEN)
+	}
+#endif
 	cs4231_initialize(rate);
 #ifdef SUPPORT_SOUND_SB16
 	ct1741_initialize(rate);
