@@ -73,8 +73,13 @@ static UINT ucs4toutf8(char *lpOutput, UINT cchOutput, const UINT32 *lpInput, UI
 			}
 			nRemain -= 2;
 			if(lpOutput) {
+#if defined(BYTESEX_BIG)
+				*lpOutput++ = (char)(0x80 + ((c >> 0) & 0x3f));
+				*lpOutput++ = (char)(0xc0 + ((c >> 6) & 0x1f));
+#else
 				*lpOutput++ = (char)(0xc0 + ((c >> 6) & 0x1f));
 				*lpOutput++ = (char)(0x80 + ((c >> 0) & 0x3f));
+#endif
 			}
 		} else if(c < 0x10000) {
 			if (nRemain < 3) {
@@ -82,9 +87,15 @@ static UINT ucs4toutf8(char *lpOutput, UINT cchOutput, const UINT32 *lpInput, UI
 			}
 			nRemain -= 3;
 			if(lpOutput) {
+#if defined(BYTESEX_BIG)
+				*lpOutput++ = (char)(0x80 + ((c >>  0) & 0x3f));
+				*lpOutput++ = (char)(0x80 + ((c >>  6) & 0x3f));
+				*lpOutput++ = (char)(0xe0 + ((c >> 12) & 0x0f));
+#else
 				*lpOutput++ = (char)(0xe0 + ((c >> 12) & 0x0f));
 				*lpOutput++ = (char)(0x80 + ((c >>  6) & 0x3f));
 				*lpOutput++ = (char)(0x80 + ((c >>  0) & 0x3f));
+#endif
 			}
 		} else {
 			if(nRemain < 4) {
@@ -92,10 +103,17 @@ static UINT ucs4toutf8(char *lpOutput, UINT cchOutput, const UINT32 *lpInput, UI
 			}
 			nRemain -= 4;
 			if(lpOutput) {
+#if defined(BYTESEX_BIG)
+				*lpOutput++ = (char)(0x80 + ((c >>  0) & 0x3f));
+				*lpOutput++ = (char)(0x80 + ((c >>  6) & 0x3f));
+				*lpOutput++ = (char)(0x80 + ((c >> 12) & 0x3f));
+				*lpOutput++ = (char)(0xe0 + ((c >> 18) & 0x07));
+#else
 				*lpOutput++ = (char)(0xe0 + ((c >> 18) & 0x07));
 				*lpOutput++ = (char)(0x80 + ((c >> 12) & 0x3f));
 				*lpOutput++ = (char)(0x80 + ((c >>  6) & 0x3f));
 				*lpOutput++ = (char)(0x80 + ((c >>  0) & 0x3f));
+#endif
 			}
 		}
 	}

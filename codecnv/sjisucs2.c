@@ -1343,8 +1343,13 @@ static UINT sjis2utf8(char *lpOutput, UINT cchOutput, const char *lpInput, UINT 
 			nRemain -= 2;
 			if (lpOutput)
 			{
+#if defined(BYTESEX_BIG)
+				*lpOutput++ = (char)(0x80 + ((r >> 0) & 0x3f));
+				*lpOutput++ = (char)(0xc0 + ((r >> 6) & 0x1f));
+#else
 				*lpOutput++ = (char)(0xc0 + ((r >> 6) & 0x1f));
 				*lpOutput++ = (char)(0x80 + ((r >> 0) & 0x3f));
+#endif
 			}
 		}
 		else
@@ -1356,9 +1361,15 @@ static UINT sjis2utf8(char *lpOutput, UINT cchOutput, const char *lpInput, UINT 
 			nRemain -= 3;
 			if (lpOutput)
 			{
+#if defined(BYTESEX_BIG)
+				*lpOutput++ = (char)(0x80 + ((r >> 0) & 0x3f));
+				*lpOutput++ = (char)(0x80 + ((r >> 6) & 0x3f));
+				*lpOutput++ = (char)(0xe0 + ((r >> 12) & 0x0f));
+#else
 				*lpOutput++ = (char)(0xe0 + ((r >> 12) & 0x0f));
 				*lpOutput++ = (char)(0x80 + ((r >> 6) & 0x3f));
 				*lpOutput++ = (char)(0x80 + ((r >> 0) & 0x3f));
+#endif
 			}
 		}
 	}

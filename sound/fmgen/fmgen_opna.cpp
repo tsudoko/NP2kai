@@ -781,7 +781,11 @@ void OPNABase::SetADPCMBReg(uint addr, uint data)
 	case 0x02:		// Start Address L
 	case 0x03:		// Start Address H
 		adpcmreg[addr - 0x02 + 0] = data;
+#if defined(BYTESEX_BIG)
+		startaddr = (adpcmreg[0]*256+adpcmreg[1]) << 6;
+#else
 		startaddr = (adpcmreg[1]*256+adpcmreg[0]) << 6;
+#endif
 		memaddr = startaddr;
 //		LOG1("  startaddr %.6x", startaddr);
 		break;
@@ -789,7 +793,11 @@ void OPNABase::SetADPCMBReg(uint addr, uint data)
 	case 0x04:		// Stop Address L
 	case 0x05:		// Stop Address H
 		adpcmreg[addr - 0x04 + 2] = data;
+#if defined(BYTESEX_BIG)
+		stopaddr = (adpcmreg[2]*256+adpcmreg[3] + 1) << 6;
+#else
 		stopaddr = (adpcmreg[3]*256+adpcmreg[2] + 1) << 6;
+#endif
 //		LOG1("  stopaddr %.6x", stopaddr);
 		break;
 
@@ -804,7 +812,11 @@ void OPNABase::SetADPCMBReg(uint addr, uint data)
 	case 0x09:		// delta-N L
 	case 0x0a:		// delta-N H
 		adpcmreg[addr - 0x09 + 4] = data;
+#if defined(BYTESEX_BIG)
+		deltan = adpcmreg[4]*256+adpcmreg[5];
+#else
 		deltan = adpcmreg[5]*256+adpcmreg[4];
+#endif
 		deltan = Max(256, deltan);
 		adpld = deltan * adplbase >> 16;
 		break;
@@ -817,7 +829,11 @@ void OPNABase::SetADPCMBReg(uint addr, uint data)
 	case 0x0c:		// Limit Address L
 	case 0x0d:		// Limit Address H
 		adpcmreg[addr - 0x0c + 6] = data;
+#if defined(BYTESEX_BIG)
+		limitaddr = (adpcmreg[6]*256+adpcmreg[7] + 1) << 6;
+#else
 		limitaddr = (adpcmreg[7]*256+adpcmreg[6] + 1) << 6;
+#endif
 //		LOG1("  limitaddr %.6x", limitaddr);
 		break;
 
