@@ -301,7 +301,11 @@ COMMON_SOURCES=	$(real_topsrcdir)/x11/main.c \
 		\
 		$(real_topsrcdir)/wab/cirrus_vga.c \
 		$(real_topsrcdir)/wab/wab_rly.c \
-		$(real_topsrcdir)/wab/wab.c
+		$(real_topsrcdir)/wab/wab.c \
+		\
+		$(real_topsrcdir)/9p/c9.c \
+		$(real_topsrcdir)/9p/c9hl.c \
+		$(real_topsrcdir)/9p/np2_9p.c
 
 xnp2kai_SOURCES=	$(COMMON_SOURCES)
 
@@ -321,6 +325,7 @@ AM_CPPFLAGS=	-I$(real_topsrcdir) \
 		-I$(real_topsrcdir)/sound/fmgen \
 		-I$(real_topsrcdir)/vram \
 		-I$(real_topsrcdir)/wab \
+		-I$(real_topsrcdir)/9p \
 		$(GTK_CFLAGS) $(GDK_CFLAGS) $(GDK_PIXBUF_CFLAGS) $(SDL_CFLAGS) $(LIBUSB1_CFLAGS) \
 		$(X11_CFLAGS) $(XEXT_CFLAGS) \
 		-DNP2_X11 -DSUPPORT_LARGE_HDD -DSUPPORT_VPCVHD -DSUPPORT_KAI_IMAGES -DHOOK_SYSKEY -DALLOW_MULTIRUN -DSUPPORT_NET -DSUPPORT_LGY98 -DUSE_MAME -DSUPPORT_SOUND_SB16 -DSUPPORT_NVL_IMAGES -DSUPPORT_FMGEN -DSUPPORT_GPIB -DSUPPORT_FAST_MEMORYCHECK -DSUPPORT_STATSAVE -DSUPPORT_NP2_THREAD -DNP2_THREAD_POSIX

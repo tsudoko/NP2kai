@@ -48,6 +48,12 @@
 #include "sysmng.h"
 #include "taskmng.h"
 
+#include <stdint.h>
+#include "c9.h"
+#include "c9hl.h"
+extern struct c9hl_state c9s;
+extern int c9hl_active;
+
 
 NP2OSCFG np2oscfg = {
 #if !defined(CPUCORE_IA32)		/* titles */
@@ -313,10 +319,21 @@ processwait(UINT cnt)
 	}
 }
 
+void
+c9step(void)
+{
+	if (c9hl_active && c9hl_step(&c9s) != 0) {
+		fprintf(stderr, "c9hl error: %s\n", c9s.err);
+		c9hl_active = 0;
+		c9hl_deinit();
+	}
+}
+
 int
 mainloop(void *p)
 {
 
+	c9step();
 	if (np2oscfg.NOWAIT) {
 		joymng_sync();
 		mousemng_callback();

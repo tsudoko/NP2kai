@@ -1,0 +1,19 @@
+Barebones 9P server for easier VM memory access from the host.
+
+Uses code from these public domain projects:
+    https://git.sr.ht/~ft/c9   3196726bc5d4d308995fbfb00a2da55cd1118a14
+    https://git.sr.ht/~ft/9pro e5a07825d118df77dba755703d4f78335366c17f
+
+Structure rundown
+-----------------
+
+c9.{c,h} implements the low-level 9P protocol primitives. It's copied verbatim
+from the ~ft/c9 repo, feel free to replace with newer versions if needed.
+
+c9hl.{c,h} is the high-level API, it's currently heavily based on code from
+~ft/9pro/9pex.c. Symbols prefixed with `extern` in the c9hl.h file must be
+implemented by the library user.
+
+np2_9p.c contains a thin layer of glue code between np2 and 9P. Several functions
+(c9hl_init, c9hl_step, c9hl_deinit) still need to be called in platform-specific
+main loop and init/deinit routines as of now.

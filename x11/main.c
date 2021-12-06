@@ -30,6 +30,10 @@
 #include <locale.h>
 #include <signal.h>
 
+#include <unistd.h>
+#include <sys/socket.h>
+#include <sys/un.h>
+
 #if defined(USE_SDLAUDIO) || defined(USE_SDLMIXER)
 #include <SDL.h>
 #endif
@@ -71,6 +75,9 @@
 #if defined(SUPPORT_CL_GD5430)
 #include "cirrus_vga_extern.h"
 #endif
+#include "c9.h"
+#include "c9hl.h"
+int c9hl_active = 1;
 
 
 static const char appname[] =
@@ -85,6 +92,8 @@ static const char appname[] =
  * failure signale handler
  */
 typedef void sigfunc(int);
+
+struct c9hl_state c9s;
 
 static sigfunc *
 setup_signal(int signo, sigfunc *func)
@@ -290,6 +299,32 @@ main(int argc, char *argv[])
 	scrnmng_initialize();
 	kbdmng_init();
 	keystat_initialize();
+
+	int listenfd, fd;
+	if((listenfd = socket(PF_UNIX, SOCK_STREAM, 0)) < 0) {
+		perror("socket");
+		return 1;
+	}
+
+	struct sockaddr_un addr;
+	memset(&addr, 0, sizeof (addr));
+	addr.sun_family = AF_UNIX;
+	memcpy(addr.sun_path, "/tmp/np2kai-9p", sizeof "/tmp/np2kai-9p");
+	if(bind(listenfd, (struct sockaddr *)&addr, sizeof (addr)) < 0) {
+		perror("bind");
+		return 1;
+	}
+
+	listen(listenfd, 1);
+	fprintf(stderr, "9p listening @ /tmp/np2kai-9p\n");
+	fd = accept(listenfd, (struct sockaddr *)NULL, NULL);
+	unlink("/tmp/np2kai-9p");
+	if(1) {
+		if(c9hl_init(0, fd, fd) < 0) {
+			fprintf(stderr, "failed to set up 9p\n");
+			c9hl_active = 0;
+		}
+	}
 
 	scrnmode = 0;
 	if (np2cfg.RASTER) {
