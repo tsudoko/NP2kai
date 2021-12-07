@@ -1,10 +1,12 @@
+#include <compiler.h>
+
 #if !defined(win32_types_h)
 #define win32_types_h
 
-#include "compiler.h"
-
+#if !defined(_MSC_VER)
 #define __stdcall
 #define HANDLE void *
+#endif
 
 typedef unsigned char uchar;
 typedef unsigned short ushort;

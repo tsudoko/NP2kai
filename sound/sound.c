@@ -3,16 +3,16 @@
  * @brief	Implementation of the sound
  */
 
-#include "compiler.h"
-#include "sound.h"
-#include "cpucore.h"
-#include "pccore.h"
-#include "iocore.h"
+#include <compiler.h>
+#include <sound/sound.h>
+#include <cpucore.h>
+#include <pccore.h>
+#include <io/iocore.h>
 #include "sndcsec.h"
-#include "beep.h"
-#include "soundmng.h"
+#include <sound/beep.h>
+#include <soundmng.h>
 #if defined(SUPPORT_WAVEREC)
-#include "common/wavefile.h"
+#include <common/wavefile.h>
 #endif	/* defined(SUPPORT_WAVEREC) */
 
 	SOUNDCFG	soundcfg;
@@ -55,7 +55,7 @@ static void streamprepare(UINT samples) {
 	CBTBL	*cb;
 	UINT	count;
 
-	count = np2min(sndstream.remain, samples);
+	count = MIN(sndstream.remain, samples);
 	if (count) {
 		ZeroMemory(sndstream.ptr, count * 2 * sizeof(SINT32));
 		cb = sndstream.cb;
@@ -133,7 +133,7 @@ static void streamfilewrite(UINT nSamples)
 
 	while (nSamples)
 	{
-		nCount = np2min(nSamples, 512);
+		nCount = MIN(nSamples, 512);
 		memset(buf32, 0, nCount * 2 * sizeof(buf32[0]));
 		cb = sndstream.cb;
 		while (cb < sndstream.cbreg)
@@ -141,7 +141,7 @@ static void streamfilewrite(UINT nSamples)
 			cb->cbfn(cb->hdl, buf32, nCount);
 			cb++;
 		}
-		r = np2min(sndstream.remain, nCount);
+		r = MIN(sndstream.remain, nCount);
 		if (r)
 		{
 			memcpy(sndstream.ptr, buf32, r * 2 * sizeof(buf32[0]));
@@ -179,7 +179,7 @@ static void filltailsample(UINT nCount)
 	SINT32 nSampleL;
 	SINT32 nSampleR;
 
-	nCount = np2min(sndstream.remain, nCount);
+	nCount = MIN(sndstream.remain, nCount);
 	if (nCount)
 	{
 		ptr = sndstream.ptr;

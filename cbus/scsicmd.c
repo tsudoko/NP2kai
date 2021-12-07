@@ -1,16 +1,16 @@
-#include	"compiler.h"
+#include	<compiler.h>
 
 #if defined(SUPPORT_SCSI)
 
-#include	"dosio.h"
-#include	"cpucore.h"
-#include	"pccore.h"
-#include	"iocore.h"
-#include	"cbuscore.h"
-#include	"scsiio.h"
+#include	<dosio.h>
+#include	<cpucore.h>
+#include	<pccore.h>
+#include	<io/iocore.h>
+#include	<cbus/cbuscore.h>
+#include	<cbus/scsiio.h>
 #include	"scsiio.tbl"
-#include	"scsicmd.h"
-#include	"fdd/sxsi.h"
+#include	<cbus/scsicmd.h>
+#include	<fdd/sxsi.h>
 
 #if defined(_WIN32) && defined(TRACE)
 extern void iptrace_out(void);
@@ -40,7 +40,7 @@ static UINT scsicmd_datain(SXSIDEV sxsi, UINT8 *cdb) {
 			// Page code = cdb[2];
 			length = cdb[4];
 			if (length) {
-				CopyMemory(scsiio.data, hdd_inquiry, np2min(length, 0x20));
+				CopyMemory(scsiio.data, hdd_inquiry, MIN(length, 0x20));
 			}
 			break;
 

@@ -2,12 +2,8 @@
 #define	NP2_I386C_CPUMEM_H__
 
 #ifdef NP2_MEMORY_ASM			// アセンブラ版は 必ずfastcallで
-#undef	MEMCALL
-#define	MEMCALL	FASTCALL
-#endif
-
-#if !defined(MEMCALL)
-#define	MEMCALL
+//#undef	MEMCALL
+//#define	MEMCALL	FASTCALL
 #endif
 
 // 000000-0fffff メインメモリ
@@ -47,8 +43,13 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
+	
+#if defined(SUPPORT_IA32_HAXM)
+extern	UINT8	membase[0x200000];
+extern	UINT8	*mem;
+#else
 extern	UINT8	mem[0x200000];
+#endif
 
 void MEMCALL memm_arch(UINT type);
 void MEMCALL memm_vram(UINT operate);

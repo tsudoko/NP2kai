@@ -1,15 +1,19 @@
-#include	"compiler.h"
-#include	"scrnmng.h"
-#include	"cpucore.h"
-#include	"pccore.h"
-#include	"iocore.h"
+#include	<compiler.h>
+#include	<scrnmng.h>
+#include	<cpucore.h>
+#include	<pccore.h>
+#include	<io/iocore.h>
 #include	"gdc_cmd.tbl"
-#include	"gdc_sub.h"
-#include	"vram.h"
-#include	"palettes.h"
-#include	"timing.h"
+#include	<io/gdc_sub.h>
+#include	<vram/vram.h>
+#include	<vram/palettes.h>
+#include	<timing.h>
 #if defined(BIOS_IO_EMULATION)
-#include	"bios/bios.h"
+#include	<bios/bios.h>
+#endif
+#if defined(SUPPORT_IA32_HAXM)
+#include	<i386hax/haxfunc.h>
+#include	<i386hax/haxcore.h>
 #endif
 
 #if !defined(CPUCORE_IA32)
@@ -155,10 +159,18 @@ void gdc_analogext(BOOL extend) {
 	if (extend) {
 		gdc.analog |= (1 << GDCANALOG_256);
 		vramop.operate |= (1 << VOPBIT_VGA);
+#if defined(SUPPORT_IA32_HAXM)
+		i386hax_vm_setmemoryarea(vramex + ((vramop.mio1[0] & 15) << 15), 0xA8000, 0x8000);
+		i386hax_vm_setmemoryarea(vramex + ((vramop.mio1[2] & 15) << 15), 0xB0000, 0x8000);
+#endif
 	}
 	else {
 		gdc.analog &= ~(1 << (GDCANALOG_256));
 		vramop.operate &= ~(1 << VOPBIT_VGA);
+#if defined(SUPPORT_IA32_HAXM)
+		i386hax_vm_removememoryarea(vramex + ((vramop.mio1[0] & 15) << 15), 0xA8000, 0x8000);
+		i386hax_vm_removememoryarea(vramex + ((vramop.mio1[2] & 15) << 15), 0xB0000, 0x8000);
+#endif
 	}
 	gdcs.palchange = GDCSCRN_REDRAW;
 	gdcs.grphdisp |= GDCSCRN_EXT | GDCSCRN_ALLDRAW2;
@@ -196,6 +208,9 @@ const GDCVECT	*vect;
 	textw = LOADINTELWORD(gdc.s.para + GDC_TEXTW);
 	ope = gdc.s.para[GDC_WRITE];
 
+	if (!(vect->ope & 0x78)) {
+		gdcsub_vectp(csrw, vect, textw, ope); // Single Dot Writing?
+    }
 	if (vect->ope & 0x08) {
 		gdcsub_vectl(csrw, vect, textw, ope);
 	}
@@ -223,7 +238,10 @@ const GDCVECT	*vect;
 	textw = gdc.s.para[GDC_TEXTW + 7];
 	textw = (textw << 8) + textw;
 	ope = gdc.s.para[GDC_WRITE];
-
+	
+	if (!(vect->ope & 0x78)) {
+		gdcsub_vectp(csrw, vect, textw, ope); // Single Dot Writing?
+    }
 	if (vect->ope & 0x08) {		// undocumented
 		gdcsub_vectl(csrw, vect, textw, ope);
 	}
@@ -1142,13 +1160,12 @@ void gdc_reset(const NP2CFG *pConfig) {
 	ZeroMemory(&gdc, sizeof(gdc));
 	ZeroMemory(&gdcs, sizeof(gdcs));
 
-#if defined(SUPPORT_PC9821)
-	gdc.display |= (1 << GDCDISP_ANALOG);
-#else
-	if (np2cfg.color16 & 1) {
+#if !defined(SUPPORT_PC9821)
+	if (pConfig->color16 & 1)
+#endif
+	{
 		gdc.display |= (1 << GDCDISP_ANALOG);
 	}
-#endif
 	if (!(pccore.dipsw[0] & 0x04)) {			// dipsw1-3 on
 		gdc.display |= (1 << GDCDISP_PLAZMA2);
 	}

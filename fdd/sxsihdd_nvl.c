@@ -1,16 +1,16 @@
-#include	"compiler.h"
+#include	<compiler.h>
 
 #ifdef SUPPORT_NVL_IMAGES
 
 #if !defined(_WIN32)
 #include	<dlfcn.h>
 #endif
-#include	"strres.h"
-#include	"dosio.h"
-#include	"sysmng.h"
-#include	"cpucore.h"
-#include	"pccore.h"
-#include	"sxsi.h"
+#include	<common/strres.h>
+#include	<dosio.h>
+#include	<sysmng.h>
+#include	<cpucore.h>
+#include	<pccore.h>
+#include	<fdd/sxsi.h>
 
 
 #if defined(_WIN32)
@@ -192,7 +192,7 @@ static BRESULT hdd_reopen(SXSIDEV sxsi)
 
 static REG8 hdd_read(SXSIDEV sxsi, FILEPOS pos, UINT8 *buf, UINT size)
 {
-	sxsihdd_nvl *p;
+	sxsihdd_nvl *p = NULL;
 
 	if (sxsi_prepare(sxsi) != SUCCESS)
 	{
@@ -201,6 +201,10 @@ static REG8 hdd_read(SXSIDEV sxsi, FILEPOS pos, UINT8 *buf, UINT size)
 	if ((pos < 0) || (pos >= sxsi->totals))
 	{
 		return (0x40);
+	}
+	p = (sxsihdd_nvl *)sxsi->hdl;
+	if(p == NULL){
+		return (0x60);
 	}
 
 	p = (sxsihdd_nvl *)sxsi->hdl;
@@ -211,7 +215,7 @@ static REG8 hdd_read(SXSIDEV sxsi, FILEPOS pos, UINT8 *buf, UINT size)
 	{
 		UINT rsize;
 
-		rsize = np2min(size, sxsi->size);
+		rsize = MIN(size, sxsi->size);
 		CPU_REMCLOCK -= rsize;
 
 		if (!(*p->f4)(p->pv, pos, rsize, buf))
@@ -230,7 +234,7 @@ static REG8 hdd_read(SXSIDEV sxsi, FILEPOS pos, UINT8 *buf, UINT size)
 
 static REG8 hdd_write(SXSIDEV sxsi, FILEPOS pos, const UINT8 *buf, UINT size)
 {
-	sxsihdd_nvl *p;
+	sxsihdd_nvl *p = NULL;
 
 	if (sxsi_prepare(sxsi) != SUCCESS)
 	{
@@ -240,16 +244,18 @@ static REG8 hdd_write(SXSIDEV sxsi, FILEPOS pos, const UINT8 *buf, UINT size)
 	{
 		return (0x40);
 	}
-
 	p = (sxsihdd_nvl *)sxsi->hdl;
-
+	if(p == NULL){
+		return (0x60);
+	}
+	
 	pos = pos * sxsi->size;
 
 	while (size)
 	{
 		UINT wsize;
 
-		wsize = np2min(size, sxsi->size);
+		wsize = MIN(size, sxsi->size);
 		CPU_REMCLOCK -= wsize;
 
 		if (!(*p->f5)(p->pv, pos, wsize, buf))
@@ -268,7 +274,7 @@ static REG8 hdd_write(SXSIDEV sxsi, FILEPOS pos, const UINT8 *buf, UINT size)
 
 static REG8 hdd_format(SXSIDEV sxsi, FILEPOS pos)
 {
-	sxsihdd_nvl *p;
+	sxsihdd_nvl *p = NULL;
 	UINT16 i;
 	UINT8 work[256];
 
@@ -279,6 +285,10 @@ static REG8 hdd_format(SXSIDEV sxsi, FILEPOS pos)
 	if ((pos < 0) || (pos >= sxsi->totals))
 	{
 		return (0x40);
+	}
+	p = (sxsihdd_nvl *)sxsi->hdl;
+	if(p == NULL){
+		return (0x60);
 	}
 
 	p = (sxsihdd_nvl *)sxsi->hdl;
@@ -295,7 +305,7 @@ static REG8 hdd_format(SXSIDEV sxsi, FILEPOS pos)
 		{
 			UINT wsize;
 
-			wsize = np2min(size, sizeof(work));
+			wsize = MIN(size, sizeof(work));
 			size -= wsize;
 			CPU_REMCLOCK -= wsize;
 

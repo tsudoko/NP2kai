@@ -3,14 +3,14 @@
  * @brief	Implementation of the disk-drive
  */
 
-#include "compiler.h"
-#include "diskdrv.h"
-#include "dosio.h"
-#include "sysmng.h"
-#include "pccore.h"
-#include "iocore.h"
-#include "diskimage/fddfile.h"
-#include "sxsi.h"
+#include <compiler.h>
+#include <fdd/diskdrv.h>
+#include <dosio.h>
+#include <sysmng.h>
+#include <pccore.h>
+#include <io/iocore.h>
+#include <diskimage/fddfile.h>
+#include <fdd/sxsi.h>
 
 #define DISK_DELAY	20			/*!< Delay 0.4sec */
 
@@ -37,7 +37,7 @@ void diskdrv_setsxsi(REG8 drv, const OEMCHAR *fname)
 	{
 		/* SASI or IDE */
 #if defined(SUPPORT_IDEIO)
-		if (num < 4)
+		if (num < SASIHDD_MAX)
 		{
 			if(sxsi_getdevtype(num)!=SXSIDEV_CDROM){
 				p = np2cfg.sasihdd[num];
@@ -56,7 +56,7 @@ void diskdrv_setsxsi(REG8 drv, const OEMCHAR *fname)
 	else
 	{
 		/* SCSI */
-		if (num < 4)
+		if (num < SCSIHDD_MAX)
 		{
 			p = np2cfg.scsihdd[num];
 			leng = NELEMENTS(np2cfg.scsihdd[0]);
@@ -95,7 +95,7 @@ const OEMCHAR *diskdrv_getsxsi(REG8 drv)
 	{
 		/* SASI or IDE */
 #if defined(SUPPORT_IDEIO)
-		if (num < 4)
+		if (num < SASIHDD_MAX)
 #else
 		if (num < 2)
 #endif
@@ -107,7 +107,7 @@ const OEMCHAR *diskdrv_getsxsi(REG8 drv)
 	else
 	{
 		/* SCSI */
-		if (num < 4)
+		if (num < SCSIHDD_MAX)
 		{
 			return np2cfg.scsihdd[num];
 		}
@@ -124,7 +124,7 @@ void diskdrv_hddbind(void)
 	REG8 drv;
 
 #if defined(SUPPORT_IDEIO)
-	for (drv = 0x00; drv < 0x04; drv++)
+	for (drv = 0x00; drv < 0x00 + SASIHDD_MAX; drv++)
 	{
 		sxsi_devclose(drv);
 	}
@@ -135,15 +135,15 @@ void diskdrv_hddbind(void)
 	}
 #endif
 #if defined(SUPPORT_SCSI)
-	for (drv = 0x20; drv < 0x24; drv++)
+	for (drv = 0x20; drv < 0x20 + SCSIHDD_MAX; drv++)
 	{
 		sxsi_devclose(drv);
 	}
 #endif /* defined(SUPPORT_SCSI) */
 
-	for (drv = 0x00; drv < 0x04; drv++)
-	{
 #if defined(SUPPORT_IDEIO)
+	for (drv = 0x00; drv < 0x00 + SASIHDD_MAX; drv++)
+	{
 		sxsi_setdevtype(drv, np2cfg.idetype[drv]);
 		if(np2cfg.idetype[drv]==SXSIDEV_HDD)
 		{
@@ -152,7 +152,9 @@ void diskdrv_hddbind(void)
 				sxsi_setdevtype(drv, SXSIDEV_NC);
 				if(np2cfg.sasihdd[drv & 0x0f]!=NULL && np2cfg.sasihdd[drv & 0x0f][0]!='\0')
 				{
-					msgbox("HD image file open error" ,"file open error"); 
+					char strbuf[] = "IDE#  file open error";
+					strbuf[4] = '0'+drv;
+					msgbox("HD image file open error", strbuf); 
 				}
 			}
 		}
@@ -164,20 +166,25 @@ void diskdrv_hddbind(void)
 				sxsi->flag = SXSIFLAG_READY | SXSIFLAG_FILEOPENED;
 			}
 		}
+	}
 #else
+	for (drv = 0x00; drv < 0x02; drv++)
+	{
 		sxsi_setdevtype(drv, SXSIDEV_HDD);
 		if (sxsi_devopen(drv, np2cfg.sasihdd[drv & 0x0f]) != SUCCESS)
 		{
 			sxsi_setdevtype(drv, SXSIDEV_NC);
 			if(np2cfg.sasihdd[drv & 0x0f]!=NULL && np2cfg.sasihdd[drv & 0x0f][0]!='\0')
 			{
-				msgbox("HD image file open error" ,"file open error"); 
+				char strbuf[] = "SASI#  file open error";
+				strbuf[5] = '0'+drv;
+				msgbox("HD image file open error", strbuf); 
 			}
 		}
-#endif
 	}
+#endif
 #if defined(SUPPORT_SCSI)
-	for (drv = 0x20; drv < 0x24; drv++)
+	for (drv = 0x20; drv < 0x20 + SCSIHDD_MAX; drv++)
 	{
 		sxsi_setdevtype(drv, SXSIDEV_HDD);
 		if (sxsi_devopen(drv, np2cfg.scsihdd[drv & 0x0f]) != SUCCESS)
@@ -201,6 +208,13 @@ void diskdrv_readyfddex(REG8 drv, const OEMCHAR *fname, UINT ftype, int readonly
 	{
 		if ((fname != NULL) && (fname[0] != '\0'))
 		{
+			short attr;
+
+			attr = file_attr(fname);
+			if(attr & FILEATTR_READONLY) {
+				readonly = 1;
+			}
+
 			fdd_set(drv, fname, ftype, readonly);
 			if ((!(fdc.chgreg & 4)) || (fdc.ctrlreg & 0x08)){
 				fdc.stat[drv] = FDCRLT_AI | drv;
@@ -233,6 +247,13 @@ void diskdrv_setfddex(REG8 drv, const OEMCHAR *fname, UINT ftype, int readonly)
 
 		if (fname)
 		{
+			short attr;
+
+			attr = file_attr(fname);
+			if(attr & FILEATTR_READONLY) {
+				readonly = 1;
+			}
+
 			diskdrv_delay[drv] = DISK_DELAY;
 			diskdrv_ftype[drv] = ftype;
 			diskdrv_ro[drv] = readonly;

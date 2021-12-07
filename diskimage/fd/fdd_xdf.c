@@ -1,9 +1,9 @@
-#include	"compiler.h"
-#include	"dosio.h"
-#include	"pccore.h"
-#include	"iocore.h"
+#include	<compiler.h>
+#include	<dosio.h>
+#include	<pccore.h>
+#include	<io/iocore.h>
 
-#include	"diskimage/fddfile.h"
+#include	<diskimage/fddfile.h>
 #include	"diskimage/fd/fdd_xdf.h"
 
 #ifdef SUPPORT_KAI_IMAGES
@@ -85,11 +85,20 @@ const OEMCHAR	*p;			//	BKDSK(DD6) or BKDSK(DDB)判定用
 	if (attr & 0x18) {
 		return(FAILURE);
 	}
-	fh = file_open(fname);
+	if(!ro) {
+		if(attr & FILEATTR_READONLY) {
+			ro = 1;
+		}
+	}
+	if(ro) {
+		fh = file_open_rb(fname);
+	} else {
+		fh = file_open(fname);
+	}
 	if (fh == FILEH_INVALID) {
 		return(FAILURE);
 	}
-	fdsize = file_getsize(fh);
+	fdsize = (UINT32)file_getsize(fh);
 	file_close(fh);
 
 	p = file_getext(fname);	//	BKDSK(DD6) or BKDSK(DDB)判定用
@@ -161,9 +170,18 @@ BRESULT fdd_set_fdi(FDDFILE fdd, FDDFUNC fdd_fn, const OEMCHAR *fname, int ro) {
 	}
 	fdsize = 0;
 	r = 0;
-	fh = file_open_rb(fname);
+	if(!ro) {
+		if(attr & FILEATTR_READONLY) {
+			ro = 1;
+		}
+	}
+	if(ro) {
+		fh = file_open_rb(fname);
+	} else {
+		fh = file_open(fname);
+	}
 	if (fh != FILEH_INVALID) {
-		fdsize = file_getsize(fh);
+		fdsize = (UINT32)file_getsize(fh);
 		r = file_read(fh, &fdi, sizeof(fdi));
 		file_close(fh);
 	}
@@ -547,7 +565,16 @@ const _XDFINFO	*xdf;
 	if (attr & 0x18) {
 		return(FAILURE);
 	}
-	fh = file_open(fname);
+	if(!ro) {
+		if(attr & FILEATTR_READONLY) {
+			ro = 1;
+		}
+	}
+	if(ro) {
+		fh = file_open_rb(fname);
+	} else {
+		fh = file_open(fname);
+	}
 	if (fh == FILEH_INVALID) {
 		return(FAILURE);
 	}
@@ -594,7 +621,16 @@ BRESULT fddxdf_setfdi(FDDFILE fdd, const OEMCHAR *fname, int ro) {
 	}
 	fdsize = 0;
 	r = 0;
-	fh = file_open_rb(fname);
+	if(!ro) {
+		if(attr & FILEATTR_READONLY) {
+			ro = 1;
+		}
+	}
+	if(ro) {
+		fh = file_open_rb(fname);
+	} else {
+		fh = file_open(fname);
+	}
 	if (fh != FILEH_INVALID) {
 		fdsize = file_getsize(fh);
 		r = file_read(fh, &fdi, sizeof(fdi));

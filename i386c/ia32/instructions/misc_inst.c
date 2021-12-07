@@ -23,19 +23,22 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "compiler.h"
-#include "ia32/cpu.h"
+#include <compiler.h>
+#include <ia32/cpu.h>
 #include "ia32/ia32.mcr"
 
 #include "misc_inst.h"
 #include "ia32/inst_table.h"
 
-#include "pccore.h"
+#include <pccore.h>
 
 #ifdef USE_SSE2
 #include "ia32/instructions/sse2/sse2.h"
 #endif
 
+#ifdef SUPPORT_IA32_HAXM
+#include <bios/bios.h>
+#endif
 void
 LEA_GwM(void)
 {
@@ -73,7 +76,9 @@ LEA_GdM(void)
 void
 _NOP(void)
 {
-
+#if defined(SUPPORT_IA32_HAXM) && defined(USE_CUSTOM_HOOKINST)
+	if(bioshookinfo.hookinst == 0x90)
+#endif
 	ia32_bioscall();
 }
 
@@ -117,10 +122,17 @@ _CPUID(void)
 		break;
 
 	case 2:
-		CPU_EAX = 0;
-		CPU_EBX = 0;
-		CPU_ECX = 0;
-		CPU_EDX = 0;
+		if(i386cpuid.cpu_family >= 6){
+			CPU_EAX = 0x1;
+			CPU_EBX = 0;
+			CPU_ECX = 0;
+			CPU_EDX = 0x43; // 512KB L2 Cache のふり
+		}else{
+			CPU_EAX = 0;
+			CPU_EBX = 0;
+			CPU_ECX = 0;
+			CPU_EDX = 0;
+		}
 		break;
 		
 	case 0x80000000:

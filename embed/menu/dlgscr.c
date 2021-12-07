@@ -1,16 +1,16 @@
-#include	"compiler.h"
-#include	"strres.h"
-#include	"scrnmng.h"
-#include	"sysmng.h"
-#include	"pccore.h"
-#include	"iocore.h"
-#include	"scrndraw.h"
-#include	"palettes.h"
-#include	"vramhdl.h"
-#include	"menubase.h"
-#include	"menustr.h"
+#include	<compiler.h>
+#include	<common/strres.h>
+#include	<scrnmng.h>
+#include	<sysmng.h>
+#include	<pccore.h>
+#include	<io/iocore.h>
+#include	<vram/scrndraw.h>
+#include	<vram/palettes.h>
+#include	<embed/vramhdl.h>
+#include	<embed/menubase/menubase.h>
+#include	<embed/menu/menustr.h>
 #include	"sysmenu.res"
-#include	"dlgscr.h"
+#include	<embed/menu/dlgscr.h>
 
 
 enum {
@@ -237,9 +237,9 @@ static void setpage(UINT page) {
 
 static void setintstr(MENUID id, int val) {
 
-	OEMCHAR	buf[16];
+	OEMCHAR	buf[64];
 
-	OEMSPRINTF(buf, str_d, val);
+	OEMSNPRINTF(buf, sizeof(buf), str_d, val);
 	menudlg_settext(id, buf);
 }
 

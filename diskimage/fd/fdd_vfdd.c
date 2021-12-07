@@ -1,11 +1,11 @@
-#include	"compiler.h"
-#include	"dosio.h"
-#include	"pccore.h"
-#include	"iocore.h"
+#include	<compiler.h>
+#include	<dosio.h>
+#include	<pccore.h>
+#include	<io/iocore.h>
 
 #ifdef SUPPORT_KAI_IMAGES
 
-#include	"diskimage/fddfile.h"
+#include	<diskimage/fddfile.h>
 #include	"diskimage/fd/fdd_vfdd.h"
 
 static const UINT8 vfdd_verID_100[8] =
@@ -25,7 +25,16 @@ const _VFDD_ID	*sec_vfdd;
 	if (attr & 0x18) {
 		return(FAILURE);
 	}
-	fh = file_open(fname);
+	if(!ro) {
+		if(attr & FILEATTR_READONLY) {
+			ro = 1;
+		}
+	}
+	if(ro) {
+		fh = file_open_rb(fname);
+	} else {
+		fh = file_open(fname);
+	}
 	if (fh == FILEH_INVALID) {
 		return(FAILURE);
 	}

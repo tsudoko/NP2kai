@@ -3,10 +3,10 @@
  * @brief	Implementation of the pcm sound
  */
 
-#include "compiler.h"
-#include "pcmmix.h"
+#include <compiler.h>
+#include <sound/pcmmix.h>
 #include "getsnd/getsnd.h"
-#include "dosio.h"
+#include <dosio.h>
 
 BRESULT pcmmix_regist(PMIXDAT *dat, void *datptr, UINT datsize, UINT rate) {
 
@@ -118,7 +118,7 @@ const SINT16	*s;
 			flag = t->flag;
 			vol = t->volume;
 			do {
-				r = np2min(srem, drem);
+				r = MIN(srem, drem);
 				switch(flag & (PMIXFLAG_L | PMIXFLAG_R)) {
 					case PMIXFLAG_L:
 						for (j=0; j<r; j++) {

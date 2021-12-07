@@ -1,15 +1,33 @@
 
 // emulation MPU-401 CPU Version 1.3 ('84/07/07)
 
-#include	"compiler.h"
-#include	"commng.h"
-#include	"pccore.h"
-#include	"iocore.h"
-#include	"cbuscore.h"
-#include	"mpu98ii.h"
-#include	"fmboard.h"
+#include	<compiler.h>
+#include	<commng.h>
+#include	<pccore.h>
+#include	<io/iocore.h>
+#include	<cbus/cbuscore.h>
+#include	<cbus/mpu98ii.h>
+#include	<sound/fmboard.h>
 
-
+#if 0
+#undef	TRACEOUT
+#define USE_TRACEOUT_VS
+#ifdef USE_TRACEOUT_VS
+static void trace_fmt_ex(const char *fmt, ...)
+{
+	char stmp[2048];
+	va_list ap;
+	va_start(ap, fmt);
+	vsprintf(stmp, fmt, ap);
+	strcat(stmp, "\n");
+	va_end(ap);
+	OutputDebugStringA(stmp);
+}
+#define	TRACEOUT(s)	trace_fmt_ex s
+#else
+#define	TRACEOUT(s)	(void)(s)
+#endif
+#endif	/* 1 */
 
 enum {
 	MIDI_STOP			= 0xfc,
@@ -215,6 +233,18 @@ static void mpu98ii_int(void) {
 
 	TRACEOUT(("int!"));
 	pic_setirq(mpu98.irqnum);
+	//// Sound Blaster 16
+	//if(g_nSoundID == SOUNDID_SB16 || g_nSoundID == SOUNDID_PC_9801_86_SB16 || g_nSoundID == SOUNDID_WSS_SB16 || g_nSoundID == SOUNDID_PC_9801_86_WSS_SB16 || g_nSoundID == SOUNDID_PC_9801_118_SB16 || g_nSoundID == SOUNDID_PC_9801_86_118_SB16){
+	//	pic_setirq(g_sb16.dmairq);
+	//}
+	//// PC-9801-118
+	//if(g_nSoundID == SOUNDID_PC_9801_118 || g_nSoundID == SOUNDID_PC_9801_86_118 || g_nSoundID == SOUNDID_PC_9801_118_SB16 || g_nSoundID == SOUNDID_PC_9801_86_118_SB16){
+	//	pic_setirq(10);
+	//}
+	//// WaveStar
+	//if(g_nSoundID == SOUNDID_WAVESTAR){
+	//	pic_setirq(10);
+	//}
 }
 
 static void tr_step(void) {
@@ -993,7 +1023,7 @@ TRACEOUT(("mpu98ii out %.4x %.2x", port, dat));
 }
 
 REG8 IOINPCALL mpu98ii_i0(UINT port) {
-
+	
 	if (cm_mpu98 == NULL) {
 		cm_mpu98 = commng_create(COMCREATE_MPU98II);
 	}
@@ -1033,16 +1063,17 @@ TRACEOUT(("mpu98ii inp %.4x %.2x", port, mpu98.data));
 REG8 IOINPCALL mpu98ii_i2(UINT port) {
 
 	REG8	ret;
-
+	
 	if (cm_mpu98 == NULL) {
 		cm_mpu98 = commng_create(COMCREATE_MPU98II);
 	}
-	if (cm_mpu98->connect != COMCONNECT_OFF || g_nSoundID == SOUNDID_PC_9801_118) {
+	if (cm_mpu98->connect != COMCONNECT_OFF || g_nSoundID == SOUNDID_PC_9801_118 || g_nSoundID == SOUNDID_PC_9801_118_SB16) {
 		ret = mpu98.status;
 		if ((mpu98.r.cnt == 0) && (mpu98.intreq == 0)) {
 			ret |= MIDIIN_AVAIL;
 		}
 // TRACEOUT(("mpu98ii inp %.4x %.2x", port, ret));
+TRACEOUT(("mpu98ii inp %.4x %.2x", port, mpu98.data));
 		return(ret);
 	}
 	(void)port;
@@ -1069,6 +1100,7 @@ void mpu98ii_reset(const NP2CFG *pConfig) {
 	cm_mpu98 = NULL;
 
 	ZeroMemory(&mpu98, sizeof(mpu98));
+	mpu98.enable = (pConfig->mpuenable ? 1 : 0);
 	mpu98.data = MPUMSG_ACK;
 	mpu98.port = 0xc0d0 | ((pConfig->mpuopt & 0xf0) << 6);
 	mpu98.irqnum = mpuirqnum[pConfig->mpuopt & 3];
@@ -1081,50 +1113,70 @@ void mpu98ii_reset(const NP2CFG *pConfig) {
 void mpu98ii_bind(void) {
 
 	UINT	port;
-
-	mpu98ii_changeclock();
-
-	port = mpu98.port;
-	iocore_attachout(port, mpu98ii_o0);
-	iocore_attachinp(port, mpu98ii_i0);
-	//iocore_attachout(port+1, mpu98ii_o2);
-	//iocore_attachinp(port+1, mpu98ii_i2);
-	port |= 2;
-	iocore_attachout(port, mpu98ii_o2);
-	iocore_attachinp(port, mpu98ii_i2);
 	
-	// PC/AT MPU-401
-	if(np2cfg.mpu_at){
-		iocore_attachout(0x330, mpu98ii_o0);
-		iocore_attachinp(0x330, mpu98ii_i0);
-		iocore_attachout(0x331, mpu98ii_o2);
-		iocore_attachinp(0x331, mpu98ii_i2);
-	}
-	// PC-9801-118
-	if(g_nSoundID == SOUNDID_PC_9801_118 || g_nSoundID == SOUNDID_PC_9801_86_118){
-		iocore_attachout(cs4231.port[10], mpu98ii_o0);
-		iocore_attachinp(cs4231.port[10], mpu98ii_i0);
-		iocore_attachout(cs4231.port[10]+1, mpu98ii_o2);
-		iocore_attachinp(cs4231.port[10]+1, mpu98ii_i2);
-		switch(np2cfg.snd118irqm){
-		case 10:
-			mpu98.irqnum = 10;
-			break;
+	if(mpu98.enable){
+		mpu98ii_changeclock();
+
+		port = mpu98.port;
+		iocore_attachout(port, mpu98ii_o0);
+		iocore_attachinp(port, mpu98ii_i0);
+		//iocore_attachout(port+1, mpu98ii_o2);
+		//iocore_attachinp(port+1, mpu98ii_i2);
+		//iocore_attachout(port+0x100, mpu98ii_o2);
+		//iocore_attachinp(port+0x100, mpu98ii_i2);
+		port |= 2;
+		iocore_attachout(port, mpu98ii_o2);
+		iocore_attachinp(port, mpu98ii_i2);
+	
+		// PC/AT MPU-401
+		if(np2cfg.mpu_at){
+			iocore_attachout(0x330, mpu98ii_o0);
+			iocore_attachinp(0x330, mpu98ii_i0);
+			iocore_attachout(0x331, mpu98ii_o2);
+			iocore_attachinp(0x331, mpu98ii_i2);
+		}
+		// PC-9801-118
+		if(g_nSoundID == SOUNDID_PC_9801_118 || g_nSoundID == SOUNDID_PC_9801_86_118 || g_nSoundID == SOUNDID_PC_9801_118_SB16 || g_nSoundID == SOUNDID_PC_9801_86_118_SB16){
+			iocore_attachout(cs4231.port[10], mpu98ii_o0);
+			iocore_attachinp(cs4231.port[10], mpu98ii_i0);
+			iocore_attachout(cs4231.port[10]+1, mpu98ii_o2);
+			iocore_attachinp(cs4231.port[10]+1, mpu98ii_i2);
 		}
 	}
 }
 
+//#define MIDIIN_DEBUG
+
 void mpu98ii_callback(void) {
 
 	UINT8	data;
+#ifdef MIDIIN_DEBUG
+	static UINT8 testseq[] = {0x90, 0x3C, 0x7F};
+	static int testseqpos = 0;
+	static DWORD time = 0;
+#endif
 
 	if (cm_mpu98) {
 		while((mpu98.r.cnt < MPU98_RECVBUFS) &&
-			(cm_mpu98->read(cm_mpu98, &data))) {
+			(cm_mpu98->read(cm_mpu98, &data)
+#ifdef MIDIIN_DEBUG
+			 || (np2cfg.asynccpu)
+#endif
+			)) {
 			if (!mpu98.r.cnt) {
 				mpu98ii_int();
 			}
+#ifdef MIDIIN_DEBUG
+			data = testseq[testseqpos];
+#endif
 			setrecvdata(data);
+#ifdef MIDIIN_DEBUG
+			if(testseqpos == sizeof(testseq) - 1){
+				time = GetTickCount();
+				testseq[1] = rand() & 0x7f;
+			}
+			testseqpos = (testseqpos + 1) % sizeof(testseq);
+#endif
 		}
 	}
 }
@@ -1138,8 +1190,10 @@ void mpu98ii_midipanic(void) {
 
 void mpu98ii_changeclock(void) {
 	
-	mpu98.xferclock = pccore.realclock / 3125;
-	makeintclock();
+	if(mpu98.enable){
+		mpu98.xferclock = pccore.realclock / 3125;
+		makeintclock();
+	}
 }
 
 

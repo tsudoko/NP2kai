@@ -1,15 +1,17 @@
-#include	"compiler.h"
-#include	"mousemng.h"
-#include	"cpucore.h"
-#include	"pccore.h"
-#include	"iocore.h"
-#include	"keystat.h"
+#include	<compiler.h>
+#include	<mousemng.h>
+#include	<cpucore.h>
+#include	<pccore.h>
+#include	<io/iocore.h>
+#include	<keystat.h>
 
 
 // マウス ver0.28
 // 一部のゲームでマウスデータを切り捨てるので正常な動かなくなる事がある
 // それを救う為に 均等に移動データが伝わるようにしなければならない
 
+static int mouseif_limitcounter = 0;
+static int mouseif_test = 0;
 
 void mouseif_sync(void) {
 
@@ -30,6 +32,14 @@ void mouseif_sync(void) {
 #else
 	mouseif.lastc = CPU_CLOCK + CPU_BASECLOCK + CPU_REMCLOCK;
 #endif
+	
+	// XXX: 何故かマウスイベントが消えることがあるので復活させる･･･ np21w ver.0.86 rev.79
+	if (!(mouseif.upd8255.portc & 0x10)) {
+		if (!nevent_iswork(NEVENT_MOUSE)) {
+			nevent_set(NEVENT_MOUSE, mouseif.intrclock << mouseif.timing,
+											mouseint, NEVENT_ABSOLUTE);
+		}
+	}
 }
 
 static void calc_mousexy(void) {
@@ -120,6 +130,7 @@ static void setportc(REG8 value) {
 		mouseif.x = 0;
 		mouseif.latch_y = mouseif.y;
 		mouseif.y = 0;
+		mouseif_limitcounter = 4; // XXX: カウンタがオーバーフローしてマウスカーソルが暴走するのを回避。ただし、オーバーフロー前提の物があるのでオーバーフローしっぱなしならそのままの値を渡す。
 		if (mouseif.latch_x > 127) {
 			mouseif.latch_x = 127;
 		}
@@ -221,6 +232,13 @@ static REG8 IOINPCALL mouseif_i7fd9(UINT port) {
 		}
 		if (portc & 0x40) {
 			x = y;
+		}
+		if (mouseif_limitcounter > 0) {
+			if(x < -128) 
+				x = -128;
+			if(x > +127) 
+				x = +127;
+			mouseif_limitcounter--;
 		}
 		if (!(portc & 0x20)) {
 			ret |= x & 0x0f;

@@ -1,21 +1,21 @@
-#include	"compiler.h"
+#include	<compiler.h>
 
 #if defined(SUPPORT_WAB) && defined(SUPPORT_CL_GD5430)
 
-#include	"strres.h"
-#include	"scrnmng.h"
-#include	"sysmng.h"
-#include	"pccore.h"
-#include	"iocore.h"
-#include	"scrndraw.h"
-#include	"palettes.h"
-#include	"vramhdl.h"
-#include	"menubase.h"
-#include	"menustr.h"
+#include	<common/strres.h>
+#include	<scrnmng.h>
+#include	<sysmng.h>
+#include	<pccore.h>
+#include	<io/iocore.h>
+#include	<vram/scrndraw.h>
+#include	<vram/palettes.h>
+#include	<embed/vramhdl.h>
+#include	<embed/menubase/menubase.h>
+#include	<embed/menu/menustr.h>
 #include	"sysmenu.res"
-#include	"dlgwab.h"
-#include	"wab.h"
-#include	"cirrus_vga_extern.h"
+#include	<embed/menu/dlgwab.h>
+#include	<wab/wab.h>
+#include	<wab/cirrus_vga_extern.h>
 
 enum {
 	DID_TAB		= DID_USER,
@@ -115,9 +115,9 @@ static void setpage(UINT page) {
 
 static void setintstr(MENUID id, int val) {
 
-	OEMCHAR	buf[16];
+	OEMCHAR	buf[64];
 
-	OEMSPRINTF(buf, str_d, val);
+	OEMSNPRINTF(buf, sizeof(buf), str_d, val);
 	menudlg_settext(id, buf);
 }
 
@@ -392,7 +392,7 @@ static void dlgupdate(void) {
 #endif
 	}
 	if (np2cfg.gd5430type != (UINT16)type) {
-		np2cfg.gd5430type = (UINT16)val;
+		np2cfg.gd5430type = (UINT16)type;
 		renewal = TRUE;
 	}
 	val = menudlg_getval(DID_CLGD_FC);

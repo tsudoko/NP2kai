@@ -27,6 +27,9 @@ static const PROCTBL evtproc[] = {
 			{PROCID('e','c','s','d'), cs4231_dma},
 			{PROCID('e','p','8','6'), pcm86_cb},
 			{PROCID('e','a','m','d'), amd98int},
+#ifdef SUPPORT_SOUND_SB16
+			{PROCID('e','c','t','d'), ct1741_dma},
+#endif
 #endif
 #if defined(SUPPORT_SASI)
 			{PROCID('e','s','a','s'), sasiioint},
@@ -64,6 +67,9 @@ static const ENUMTBL evtnum[] = {
 			{PROCID('p','c','m','8'), NEVENT_86PCM},
 			{PROCID('s','a','s','i'), NEVENT_SASIIO},
 			{PROCID('s','c','s','i'), NEVENT_SCSIIO},
+#ifdef SUPPORT_SOUND_SB16
+			{PROCID('1','7','4','1'), NEVENT_CT1741},
+#endif
 };
 
 static const PROCTBL dmaproc[] = {
@@ -75,6 +81,9 @@ static const PROCTBL dmaproc[] = {
 			{PROCID('d','e','f','d'), fdc_dmafunc},
 #if !defined(DISABLE_SOUND)
 			{PROCID('d','e','c','s'), cs4231dmafunc},
+#if defined(SUPPORT_SOUND_SB16)
+			{PROCID('d','e','c','t'), ct1741dmafunc},
+#endif
 #endif
 #if defined(SUPPORT_SASI)
 			{PROCID('d','o','s','a'), sasi_dataread},
@@ -84,17 +93,24 @@ static const PROCTBL dmaproc[] = {
 	};
 
 static const SFENTRY np2tbl[] = {
-	{"PCCORE",		0,	STATFLAG_BIN,	&pccore,		sizeof(pccore)},
+	{"PCCORE",		0,	STATFLAG_BIN|STATFLAG_BWD_COMPATIBLE,	&pccore,		sizeof(pccore)},
 
 	{"CPU286",		0,	STATFLAG_BIN,	&CPU_STATSAVE,	sizeof(CPU_STATSAVE)},
 #if defined(CPUCORE_IA32)
 	{"CPUID",		0,	STATFLAG_BIN,	&i386cpuid,		sizeof(i386cpuid)},
 	{"CPUMSR",		0,	STATFLAG_BIN,	&i386msr,		sizeof(i386msr)},
 #endif
+#if defined(SUPPORT_IA32_HAXM)
+	{"CPUHAXM",		0,	STATFLAG_BIN,	&np2haxstat,	sizeof(np2haxstat)},
+#endif
 	{"MEMORY",		0,	STATFLAG_MEM,	NULL,			0x130000},
 	{"EXTMEM",		0,	STATFLAG_EXT,	NULL,			0},
 #if defined(SUPPORT_PC9821)
+#if defined(SUPPORT_IA32_HAXM)
+	{"VRAMEX",		0,	STATFLAG_BIN,	vramex_base,	sizeof(vramex_base)},
+#else
 	{"VRAMEX",		0,	STATFLAG_BIN,	vramex,			sizeof(vramex)},
+#endif
 #endif
 
 	{"ARTIC",		0,	STATFLAG_BIN,	&artic,			sizeof(artic)},
@@ -116,6 +132,9 @@ static const SFENTRY np2tbl[] = {
 	{"NP2SYSPORT",	0,	STATFLAG_BIN,	&np2sysp,		sizeof(np2sysp)},
 	{"PIC",			0,	STATFLAG_BIN,	&pic,			sizeof(pic)},
 	{"RS232C",		0,	STATFLAG_BIN,	&rs232c,		sizeof(rs232c)},
+#if defined(SUPPORT_RS232C_FIFO)
+	{"RS232CFIFO",	0,	STATFLAG_BIN,	&rs232cfifo,	sizeof(rs232cfifo)},
+#endif
 	{"SYSTEMPORT",	0,	STATFLAG_BIN,	&sysport,		sizeof(sysport)},
 	{"uPD4990",		0,	STATFLAG_BIN,	&uPD4990,		sizeof(uPD4990)},
 #if defined(SUPPORT_PC9821)&&defined(SUPPORT_PCI)
@@ -129,8 +148,15 @@ static const SFENTRY np2tbl[] = {
 	{"KEYSTAT",		0,	STATFLAG_BIN,	&keyctrl,		sizeof(keyctrl)},
 	{"PALEVENT",	0,	STATFLAG_BIN,	&palevent,		sizeof(palevent)},
 	{"MPU98II",		0,	STATFLAG_BIN,	&mpu98,			sizeof(mpu98)},
+#if defined(SUPPORT_SMPU98)
+	{"SMPU98",		0,	STATFLAG_BIN,	&smpu98,		sizeof(smpu98)},
+#endif
 	{"CMMPU98",		0,	STATFLAG_COM,	(void *)0,		0},
 	{"CMRS232C",	0,	STATFLAG_COM,	(void *)1,		0},
+#if defined(SUPPORT_SMPU98)
+	{"CMSMPUA",		0,	STATFLAG_COM,	(void *)2,		0},
+	{"CMSMPUB",		0,	STATFLAG_COM,	(void *)3,		0},
+#endif
 	{"FDD",			0,	STATFLAG_FDD,	NULL,			0},
 	{"SXSI",		0,	STATFLAG_SXSI,	NULL,			0},
 #if !defined(DISABLE_SOUND)
@@ -138,7 +164,7 @@ static const SFENTRY np2tbl[] = {
 	{"BEEP",		0,	STATFLAG_BIN,	&g_beep,		sizeof(g_beep)},
 #endif
 #if defined(SUPPORT_IDEIO)
-	{"IDE",			0,	STATFLAG_BIN,	&ideio,			sizeof(ideio)},
+	{"IDE",			0,	STATFLAG_BIN|STATFLAG_BWD_COMPATIBLE,	&ideio,			sizeof(ideio)},
 #endif
 #if defined(SUPPORT_SASI)
 	{"SASI",		0,	STATFLAG_BIN,	&sasiio,		sizeof(sasiio)},
@@ -158,7 +184,7 @@ static const SFENTRY np2tbl[] = {
 	{"WABCFG",		0,	STATFLAG_BIN,	&np2wabcfg,		sizeof(np2wabcfg)},
 #endif
 #if defined(SUPPORT_CL_GD5430)
-	{"NP2CLVGA",	0,	STATFLAG_BIN,	&np2clvga,		sizeof(np2clvga)},
+	{"NP2CLVGA",	0,	STATFLAG_BIN|STATFLAG_BWD_COMPATIBLE,	&np2clvga,		sizeof(np2clvga)},
 	{"CLVGA",		0,	STATFLAG_BIN,	cirrusvga_statsavebuf, sizeof(cirrusvga_statsavebuf)},
 #endif
 #if defined(SUPPORT_HOSTDRV)
@@ -169,6 +195,9 @@ static const SFENTRY np2tbl[] = {
 #endif
 #if defined(SUPPORT_PC9821)&&defined(SUPPORT_PCI)
 	{"PEGC",		0,	STATFLAG_BIN,	&pegc,			sizeof(pegc)},
+#endif
+#if defined(USE_CUSTOM_HOOKINST)
+	{"BIOSHOOK",	0,	STATFLAG_BIN,	&bioshookinfo,		sizeof(bioshookinfo)},
 #endif
 	{"TERMINATE",	0,	STATFLAG_TERM,	NULL,			0}};
 

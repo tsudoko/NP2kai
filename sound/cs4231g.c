@@ -3,10 +3,10 @@
  * @brief	Implementation of the CS4231
  */
 
-#include "compiler.h"
-#include "cs4231.h"
-#include "iocore.h"
-#include "sound/fmboard.h"
+#include <compiler.h>
+#include <sound/cs4231.h>
+#include <io/iocore.h>
+#include <sound/fmboard.h>
 #include <math.h>
 
 extern	CS4231CFG	cs4231cfg;
@@ -52,7 +52,7 @@ const UINT8	*ptr2;
 		pos12 += cs->step12;
 	} while(--count);
 
-	leng = np2min(leng, (pos12 >> 12));
+	leng = MIN(leng, (pos12 >> 12));
 	cs->bufdatas -= (leng << 0);
 	cs->bufpos = (cs->bufpos + (leng << 0)) & CS4231_BUFMASK;
 	cs->pos12 = pos12 & ((1 << 12) - 1);
@@ -97,7 +97,7 @@ const UINT8	*ptr2;
 		pos12 += cs->step12;
 	} while(--count);
 
-	leng = np2min(leng, (pos12 >> 12));
+	leng = MIN(leng, (pos12 >> 12));
 	cs->bufdatas -= (leng << 1);
 	cs->bufpos = (cs->bufpos + (leng << 1)) & CS4231_BUFMASK;
 	cs->pos12 = pos12 & ((1 << 12) - 1);
@@ -139,7 +139,7 @@ const UINT8	*ptr2;
 		pos12 += cs->step12;
 	} while(--count);
 
-	leng = np2min(leng, (pos12 >> 12));
+	leng = MIN(leng, (pos12 >> 12));
 	cs->bufdatas -= (leng << 1);
 	cs->bufpos = (cs->bufpos + (leng << 1)) & CS4231_BUFMASK;
 	cs->pos12 = pos12 & ((1 << 12) - 1);
@@ -184,7 +184,7 @@ const UINT8	*ptr2;
 		pos12 += cs->step12;
 	} while(--count);
 	
-	leng = np2min(leng, (pos12 >> 12));
+	leng = MIN(leng, (pos12 >> 12));
 	cs->bufdatas -= (leng << 2);
 	cs->bufpos = (cs->bufpos + (leng << 2)) & CS4231_BUFMASK;
 	cs->pos12 = pos12 & ((1 << 12) - 1);
@@ -226,7 +226,7 @@ const UINT8	*ptr2;
 		pos12 += cs->step12;
 	} while(--count);
 	
-	leng = np2min(leng, (pos12 >> 12));
+	leng = MIN(leng, (pos12 >> 12));
 	cs->bufdatas -= (leng << 1);
 	cs->bufpos = (cs->bufpos + (leng << 1)) & CS4231_BUFMASK;
 	cs->pos12 = pos12 & ((1 << 12) - 1);
@@ -271,7 +271,7 @@ const UINT8	*ptr2;
 		pos12 += cs->step12;
 	} while(--count);
 	
-	leng = np2min(leng, (pos12 >> 12));
+	leng = MIN(leng, (pos12 >> 12));
 	cs->bufdatas -= (leng << 2);
 	cs->bufpos = (cs->bufpos + (leng << 2)) & CS4231_BUFMASK;
 	cs->pos12 = pos12 & ((1 << 12) - 1);

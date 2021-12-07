@@ -1,13 +1,13 @@
-#include	"compiler.h"
+#include	<compiler.h>
 
 #if defined(SUPPORT_SASI)
 
-#include	"dosio.h"
-#include	"cpucore.h"
-#include	"pccore.h"
-#include	"iocore.h"
-#include	"sasiio.h"
-#include	"fdd/sxsi.h"
+#include	<dosio.h>
+#include	<cpucore.h>
+#include	<pccore.h>
+#include	<io/iocore.h>
+#include	<cbus/sasiio.h>
+#include	<fdd/sxsi.h>
 #include	"sasibios.res"
 
 
@@ -39,6 +39,8 @@ enum {
 	SASIISR_ACK		= 0x40,
 	SASIISR_REQ		= 0x80
 };
+
+extern int sxsi_unittbl[];
 
 	_SASIIO		sasiio;
 
@@ -112,7 +114,7 @@ static void checkcmd(void) {
 
 	UINT8	unit;
 
-	unit = (sasiio.cmd[1] >> 5) & 1;
+	unit = sxsi_unittbl[(sasiio.cmd[1] >> 5) & 1];
 	sasiio.unit = unit;
 	switch(sasiio.cmd[0]) {
 		case 0x00:		// Test Drive Ready
@@ -418,14 +420,14 @@ static REG8 IOINPCALL sasiio_i82(UINT port) {
 	}
 	else {
 		ret = 0;
-		sxsi = sxsi_getptr(0x00);		// SASI-1
+		sxsi = sxsi_getptr(sxsi_unittbl[0x00]);		// SASI-1
 		if (sxsi) {
 			ret |= (sxsi->mediatype & 7) << 3;
 		}
 		else {
 			ret |= (7 << 3);
 		}
-		sxsi = sxsi_getptr(0x01);		// SASI-2
+		sxsi = sxsi_getptr(sxsi_unittbl[0x01]);		// SASI-2
 		if (sxsi) {
 			ret |= (sxsi->mediatype & 7);
 		}

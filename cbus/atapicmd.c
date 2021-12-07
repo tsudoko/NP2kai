@@ -1,4 +1,4 @@
-#include	"compiler.h"
+#include	<compiler.h>
 
 #if 0
 #undef	TRACEOUT
@@ -12,13 +12,14 @@
 #include	<process.h>
 #endif
 
-#include	"dosio.h"
-#include	"cpucore.h"
-#include	"pccore.h"
-#include	"iocore.h"
-#include	"ideio.h"
-#include	"atapicmd.h"
-#include	"fdd/sxsi.h"
+#include	<dosio.h>
+#include	<cpucore.h>
+#include	<pccore.h>
+#include	<io/iocore.h>
+#include	<cbus/ideio.h>
+#include	<cbus/atapicmd.h>
+#include	<fdd/sxsi.h>
+#include	<codecnv/codecnv.h>
 
 #define	YUIDEBUG
 
@@ -31,6 +32,7 @@
 static int atapi_thread_initialized = 0;
 static HANDLE atapi_thread = NULL;
 static IDEDRV atapi_thread_drv = NULL;
+static HANDLE atapi_thread_main = NULL;
 #else
 	// TODO: 非Windows用コードを書く
 #endif
@@ -65,7 +67,7 @@ static const UINT8 cdrom_inquiry[] = {
 
 static void senddata(IDEDRV drv, UINT size, UINT limit) {
 
-	size = np2min(size, limit);
+	size = MIN(size, limit);
 	drv->sc = IDEINTR_IO;
 	drv->cy = size;
 	drv->status &= ~(IDESTAT_BSY|IDESTAT_DMRD|IDESTAT_SERV|IDESTAT_CHK);
@@ -182,11 +184,16 @@ static void atapi_cmd_pauseresume(IDEDRV drv);
 static void atapi_cmd_seek(IDEDRV drv, UINT32 lba);
 static void atapi_cmd_mechanismstatus(IDEDRV drv);
 
+#define MEDIA_CHANGE_WAIT	6	// Waitを入れないとWinNT系で正しくメディア交換出来ない
+static int mediachangeflag = 0;
+
+extern REG8 cdchange_drv;
+void cdchange_timeoutproc(NEVENTITEM item);
+
 void atapicmd_a0(IDEDRV drv) {
 
 	UINT32	lba, leng;
 	UINT8	cmd;
-	static int mediachangeflag = 1;
 
 	cmd = drv->buf[0];
 	switch (cmd) {
@@ -196,35 +203,64 @@ void atapicmd_a0(IDEDRV drv) {
 			/* medium not present */
 			ATAPI_SET_SENSE_KEY(drv, ATAPI_SK_NOT_READY);
 			drv->asc = ATAPI_ASC_MEDIUM_NOT_PRESENT;
-			mediachangeflag = 1;
+			if(drv->sxsidrv==cdchange_drv && g_nevent.item[NEVENT_CDWAIT].clock > 0){
+				if(mediachangeflag==MEDIA_CHANGE_WAIT){
+					nevent_set(NEVENT_CDWAIT, 1, cdchange_timeoutproc, NEVENT_ABSOLUTE); // OS側がCDを催促しているようなので更に急いで交換
+				}else if(mediachangeflag==0){
+					nevent_setbyms(NEVENT_CDWAIT, 100, cdchange_timeoutproc, NEVENT_ABSOLUTE); // OS側がCDが無いと認識したようなので急いで交換
+				}
+			}
+			if(mediachangeflag < MEDIA_CHANGE_WAIT) mediachangeflag++;
+			//drv->status |= IDESTAT_ERR;
+			//drv->error = IDEERR_MCNG;
 			senderror(drv);
 			break;
 		}
 		if (drv->media & IDEIO_MEDIA_CHANGED) {
+			UINT8 olderror = drv->error;
 			ATAPI_SET_SENSE_KEY(drv, ATAPI_SK_NOT_READY);
 			if(drv->damsfbcd){
 				// NECCDD.SYS
-				if(mediachangeflag){
+				//if(mediachangeflag){
+				//if(mediachangeflag >= MEDIA_CHANGE_WAIT){
 					drv->media &= ~IDEIO_MEDIA_CHANGED;
 					drv->asc = ATAPI_ASC_NOT_READY_TO_READY_TRANSITION;
-				}else{
-					drv->asc = ATAPI_ASC_MEDIUM_NOT_PRESENT;
-					mediachangeflag++;
-				}
+					//drv->error &= ~IDEERR_MCRQ;
+				//}else{
+				//	drv->asc = ATAPI_ASC_MEDIUM_NOT_PRESENT;
+				//	mediachangeflag++;
+				//	//drv->status |= IDESTAT_ERR;
+				//	//drv->error |= IDEERR_MCRQ;
+				//}
 			}else{
 				// for WinNT,2000 setup
-				if(mediachangeflag){
+				if(mediachangeflag >= MEDIA_CHANGE_WAIT){
 					drv->media &= ~IDEIO_MEDIA_CHANGED;
 					drv->asc = 0x0204; // LOGICAL DRIVE NOT READY - INITIALIZING COMMAND REQUIRED
+				//}else if(mediachangeflag >= 1){
+				//	drv->asc = 0x0204; // LOGICAL DRIVE NOT READY - INITIALIZING COMMAND REQUIRED
+				//	mediachangeflag++;
 				}else{
 					drv->asc = ATAPI_ASC_MEDIUM_NOT_PRESENT;
-					mediachangeflag++;
+//#if defined(CPUCORE_IA32)
+//					// Workaround for WinNT
+//					if (CPU_STAT_PM && !CPU_STAT_VM86) {
+						//mediachangeflag++;
+//					} else
+//#endif
+//					{
+						mediachangeflag = MEDIA_CHANGE_WAIT;
+					//}
 				}
 			}
 			senderror(drv);
 			break;
 		}
 		mediachangeflag = 0;
+		//if(drv->error & IDEERR_MCNG){
+		//	drv->status &= ~IDESTAT_ERR;
+		//	drv->error &= ~IDEERR_MCNG;
+		//}
 
 		cmddone(drv);
 		break;
@@ -331,7 +367,9 @@ void atapi_cmd_traycmd_eject_threadfunc(void* vdParam) {
 #if defined(_WINDOWS)
 	HANDLE handle;
 	DWORD dwRet = 0;
-	handle = CreateFile(np2cfg.idecd[(int)vdParam], GENERIC_READ|GENERIC_WRITE, FILE_SHARE_READ|FILE_SHARE_WRITE, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
+	wchar_t	wpath[MAX_PATH];
+	codecnv_utf8toucs2(wpath, MAX_PATH, np2cfg.idecd[(int)vdParam], -1);
+	handle = CreateFileW(wpath, GENERIC_READ|GENERIC_WRITE, FILE_SHARE_READ|FILE_SHARE_WRITE, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
 	if(handle != INVALID_HANDLE_VALUE){
 		if(DeviceIoControl(handle, FSCTL_LOCK_VOLUME, 0, 0, 0, 0, &dwRet, 0)){
 			if(DeviceIoControl(handle, FSCTL_DISMOUNT_VOLUME, 0, 0, 0, 0, &dwRet, 0)){
@@ -348,7 +386,9 @@ void atapi_cmd_traycmd_close_threadfunc(void* vdParam) {
 #if defined(_WINDOWS)
 	HANDLE handle;
 	DWORD dwRet = 0;
-	handle = CreateFile(np2cfg.idecd[(int)vdParam], GENERIC_READ, FILE_SHARE_WRITE, 0, OPEN_EXISTING, 0, 0);
+	wchar_t	wpath[MAX_PATH];
+	codecnv_utf8toucs2(wpath, MAX_PATH, np2cfg.idecd[(int)vdParam], -1);
+	handle = CreateFileW(wpath, GENERIC_READ, FILE_SHARE_WRITE, 0, OPEN_EXISTING, 0, 0);
 	if(handle != INVALID_HANDLE_VALUE){
 		DeviceIoControl(handle, IOCTL_STORAGE_LOAD_MEDIA, 0, 0, 0, 0, &dwRet, 0);
 		CloseHandle(handle);
@@ -374,7 +414,7 @@ static void atapi_cmd_start_stop_unit(IDEDRV drv) {
 		drv->asc = ATAPI_ASC_INVALID_FIELD_IN_CDB;
 		goto send_error;
 	}
-	switch(drv->buf[4] & 2){
+	switch(drv->buf[4] & 3){
 	case 0: // Stop the Disc
 		break;
 	case 1: // Start the Disc and read the TOC
@@ -529,13 +569,17 @@ void atapi_dataread_threadfunc_part(IDEDRV drv) {
 		pic_setirq(IDE_IRQ);
 	}
 }
+void WINAPI atapi_APCFunc(ULONG_PTR arg)
+{
+	// nothing to do
+}
 unsigned int __stdcall atapi_dataread_threadfunc(void* vdParam) {
 	IDEDRV drv = NULL;
 
 	while(atapi_thread_initialized){
 		drv = atapi_thread_drv;
 		atapi_dataread_threadfunc_part(drv);
-
+		QueueUserAPC(atapi_APCFunc, atapi_thread_main, 0);
 		SuspendThread(atapi_thread);
 	}
 	
@@ -561,7 +605,9 @@ void atapi_dataread(IDEDRV drv) {
 	if(np2cfg.useasynccd){
 		if(atapi_thread){
 			atapi_thread_drv = drv;
+			SleepEx(0, TRUE); // キューに溜まっている物を捨てる
 			ResumeThread(atapi_thread);
+			SleepEx(2, TRUE);
 		}else{
 			atapi_dataread_threadfunc_part(drv);
 		}
@@ -787,7 +833,7 @@ static void atapi_cmd_mode_sense(IDEDRV drv) {
 			p2a = defval_pagecode_2a;
 			ptr = defval_pagecode_0f;
 		}
-		CopyMemory(p, ptr, np2min((leng - cnt), PC_0F_SIZE));
+		CopyMemory(p, ptr, MIN((leng - cnt), PC_0F_SIZE));
 		p[4] = (p2a[4] & 1);				// byte04 bit0 = Audioplay supported?
 		p[4] |= ((p2a[6] & 2) << 6);		// byte04 bit7 = lock state?
 		p[4] |= ((p2a[5] & 4) << 2);		// byte04 bit4 = R-W supported?
@@ -813,7 +859,7 @@ static void atapi_cmd_mode_sense(IDEDRV drv) {
 		else {
 			ptr = defval_pagecode_01;
 		}
-		CopyMemory(drv->buf + cnt, ptr, np2min((leng - cnt), PC_01_SIZE));
+		CopyMemory(drv->buf + cnt, ptr, MIN((leng - cnt), PC_01_SIZE));
 		cnt += PC_01_SIZE;
 		if (cnt > leng) {
 			goto length_exceeded;
@@ -830,7 +876,7 @@ static void atapi_cmd_mode_sense(IDEDRV drv) {
 		else {
 			ptr = defval_pagecode_0d;
 		}
-		CopyMemory(drv->buf + cnt, ptr, np2min((leng - cnt), PC_0D_SIZE));
+		CopyMemory(drv->buf + cnt, ptr, MIN((leng - cnt), PC_0D_SIZE));
 		cnt += PC_0D_SIZE;
 		if (cnt > leng) {
 			goto length_exceeded;
@@ -847,7 +893,7 @@ static void atapi_cmd_mode_sense(IDEDRV drv) {
 		else {
 			ptr = defval_pagecode_0e;
 		}
-		CopyMemory(drv->buf + cnt, ptr, np2min((leng - cnt), PC_0E_SIZE));
+		CopyMemory(drv->buf + cnt, ptr, MIN((leng - cnt), PC_0E_SIZE));
 		cnt += PC_0E_SIZE;
 		if (cnt > leng) {
 			goto length_exceeded;
@@ -865,7 +911,7 @@ static void atapi_cmd_mode_sense(IDEDRV drv) {
 		else {
 			ptr = defval_pagecode_2a;
 		}
-		CopyMemory(drv->buf + cnt, ptr, np2min((leng - cnt), PC_2A_SIZE));
+		CopyMemory(drv->buf + cnt, ptr, MIN((leng - cnt), PC_2A_SIZE));
 		cnt += PC_2A_SIZE;
 		if (cnt > leng) {
 			goto length_exceeded;
@@ -1074,7 +1120,7 @@ static void atapi_cmd_readtoc(IDEDRV drv) {
 	switch (format) {
 	case 0: // track info
 		//datasize = (tracks * 8) + 10;
-		strack = np2min(np2max(1U, strack), (tracks+1));		// special case: 0 = 1sttrack, 0xaa = leadout
+		strack = MIN(MAX(1U, strack), (tracks+1));		// special case: 0 = 1sttrack, 0xaa = leadout
 		datasize = ((tracks - strack + 1U) * 8U) + 10;
 		drv->buf[0] = (UINT8)(datasize >> 8);
 		drv->buf[1] = (UINT8)(datasize >> 0);
@@ -1257,8 +1303,12 @@ void atapi_initialize(void) {
 	//	pic_cs_initialized = 1;
 	//}
 	if(!atapi_thread_initialized){
-		atapi_thread_initialized = 1;
-		atapi_thread = (HANDLE)_beginthreadex(NULL, 0, atapi_dataread_threadfunc, NULL, CREATE_SUSPENDED, &dwID);
+		if(DuplicateHandle(GetCurrentProcess(), GetCurrentThread(), GetCurrentProcess(), &atapi_thread_main, 0, FALSE, DUPLICATE_SAME_ACCESS)){
+			atapi_thread_initialized = 1;
+			atapi_thread = (HANDLE)_beginthreadex(NULL, 0, atapi_dataread_threadfunc, NULL, CREATE_SUSPENDED, &dwID);
+		}else{
+			atapi_thread_main = NULL;
+		}
 	}
 #else
 	// TODO: 非Windows用コードを書く
@@ -1275,6 +1325,8 @@ void atapi_deinitialize(void) {
 		}
 		CloseHandle(atapi_thread);
 		atapi_thread = NULL;
+		CloseHandle(atapi_thread_main);
+		atapi_thread_main = NULL;
 	}
 #else
 	// TODO: 非Windows用コードを書く

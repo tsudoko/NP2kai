@@ -1,10 +1,10 @@
-#include	"compiler.h"
-#include	"strres.h"
-#include	"dosio.h"
-#include	"cpucore.h"
-#include	"pccore.h"
-#include	"iocore.h"
-#include	"debugsub.h"
+#include	<compiler.h>
+#include	<common/strres.h>
+#include	<dosio.h>
+#include	<cpucore.h>
+#include	<pccore.h>
+#include	<io/iocore.h>
+#include	<debugsub.h>
 
 void debugwriteseg(const OEMCHAR *fname, const descriptor_t *sd,
 												UINT32 addr, UINT32 size);
@@ -128,14 +128,14 @@ void debugwriteseg(const OEMCHAR *fname, const descriptor_t *sd,
 	if (limit <= addr) {
 		return;
 	}
-	size = np2min(limit - addr, size - 1) + 1;
+	size = MIN(limit - addr, size - 1) + 1;
 	fh = file_create_c(fname);
 	if (fh == FILEH_INVALID) {
 		return;
 	}
 	addr += sd->u.seg.segbase;
 	while(size) {
-		limit = np2min(size, sizeof(buf));
+		limit = MIN(size, sizeof(buf));
 		MEML_READS(addr, buf, limit);
 		file_write(fh, buf, limit);
 		addr += limit;

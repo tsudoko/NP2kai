@@ -3,8 +3,12 @@
  * @brief	Implementation of converting EUC to S-JIS
  */
 
-#include "compiler.h"
-#include "codecnv.h"
+#ifdef CODECNV_TEST
+#include "compiler_base.h"
+#else
+#include <compiler.h>
+#endif
+#include <codecnv/codecnv.h>
 
 static UINT euctosjis(char *lpOutput, UINT cchOutput, const char *lpInput, UINT cchInput);
 

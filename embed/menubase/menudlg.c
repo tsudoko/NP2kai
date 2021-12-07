@@ -1,10 +1,10 @@
-#include	"compiler.h"
-#include	"strres.h"
-#include	"fontmng.h"
-#include	"vramhdl.h"
-#include	"vrammix.h"
+#include	<compiler.h>
+#include	<common/strres.h>
+#include	<fontmng.h>
+#include	<embed/vramhdl.h>
+#include	<embed/vrammix.h>
 #include	"menudeco.inc"
-#include	"menubase.h"
+#include	<embed/menubase/menubase.h>
 
 
 typedef struct _dprm {
@@ -692,7 +692,7 @@ static BOOL dlglist_append(MENUDLG dlg, DLGHDL hdl, const OEMCHAR* arg) {
 			if (barsize >= 8) {
 				barsize *= hdl->c.dl.dispmax;
 				barsize /= hdl->prmcnt;
-				barsize = np2max(barsize, 6);
+				barsize = MAX(barsize, 6);
 				if (!hdl->c.dl.scrollbar) {
 					dlglist_drawall(hdl);
 					dlglist_setbtn(hdl, 0);

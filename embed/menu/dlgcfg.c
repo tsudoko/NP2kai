@@ -1,13 +1,13 @@
-#include	"compiler.h"
-#include	"strres.h"
+#include	<compiler.h>
+#include	<common/strres.h>
 #include	"np2.h"
-#include	"sysmng.h"
-#include	"pccore.h"
-#include	"vramhdl.h"
-#include	"menubase.h"
-#include	"menustr.h"
+#include	<sysmng.h>
+#include	<pccore.h>
+#include	<embed/vramhdl.h>
+#include	<embed/menubase/menubase.h>
+#include	<embed/menu/menustr.h>
 #include	"sysmenu.res"
-#include	"dlgcfg.h"
+#include	<embed/menu/dlgcfg.h>
 
 
 enum {
@@ -161,7 +161,7 @@ static void setmulstr(void) {
 	else if (multiple > 100) {
 		multiple = 100;
 	}
-	OEMSPRINTF(work, str_mulfmt, multiple);
+	OEMSNPRINTF(work, sizeof(work), str_mulfmt, multiple);
 	menudlg_settext(DID_MULSTR, work);
 }
 
@@ -185,7 +185,7 @@ static void setclockstr(void) {
 		multiple = 100;
 	}
 	clock *= multiple;
-	OEMSPRINTF(work, str_clockfmt, clock / 10000, clock % 10000);
+	OEMSNPRINTF(work, sizeof(work),  str_clockfmt, clock / 10000, clock % 10000);
 	menudlg_settext(DID_CLOCKSTR, work);
 }
 
@@ -201,7 +201,7 @@ static void setbufstr(void) {
 	else if (val > 1000) {
 		val = 1000;
 	}
-	OEMSPRINTF(work, str_buffmt, val);
+	OEMSNPRINTF(work, sizeof(work), str_buffmt, val);
 	menudlg_settext(DID_BUFSTR, work);
 }
 

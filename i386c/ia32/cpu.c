@@ -23,8 +23,8 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "compiler.h"
-#include "dosio.h"
+#include <compiler.h>
+#include <dosio.h>
 #include "cpu.h"
 #include "ia32.mcr"
 
@@ -35,9 +35,18 @@
 #endif
 
 #if defined(SUPPORT_ASYNC_CPU)
-#include "timing.h"
-#include "nevent.h"
-#include "pccore.h"
+#include <timing.h>
+#include <nevent.h>
+#include <pccore.h>
+#include	<io/iocore.h>
+#include	<sound/sound.h>
+#include	<sound/beep.h>
+#include	<sound/fmboard.h>
+#include	<sound/soundrom.h>
+#include	<cbus/mpu98ii.h>
+#if defined(SUPPORT_SMPU98)
+#include	<cbus/smpu98.h>
+#endif
 #endif
 
 
@@ -273,52 +282,28 @@ exec_allstep(void)
 	UINT32 op;
 	void (*func)(void);
 #if defined(SUPPORT_ASYNC_CPU)
-	int clkstep = 4; // XXX: timing_getcount_baseclockを頻繁に呼ぶと負荷が大きい気がするので間引き
-	int clkcnt = 0;
+	int firstflag = 1;
+	UINT timing;
+	UINT lcflag = 0;
+	SINT32 oldremclock = CPU_REMCLOCK;
+	static int remclock_mul = 1000;
+	int remclockb = 0;
+	int remclkcnt = 0x100;
+	static int latecount = 0;
+	static int latecount2 = 0;
+	static int hltflag = 0;
+
+	if(latecount2==0){
+		if(latecount > 0){
+			//latecount--;
+		}else if (latecount < 0){
+			latecount++;
+		}
+	}
+	latecount2 = (latecount2+1) & 0x1fff;
 #endif
 	
 	do {
-#if defined(SUPPORT_ASYNC_CPU)
-		// 非同期CPU処理
-		if(np2cfg.asynccpu){
-			//if(asynccpu_clockpersec.QuadPart){
-			//	// 厳密っぽい時間にする
-			//	if(clkcnt==0){
-			//		asynccpu_clockcount = GetTickCounter_Clock();
-			//		if(!((asynccpu_clockcount.QuadPart - asynccpu_lastclock.QuadPart) * pccore.realclock / asynccpu_clockpersec.QuadPart < CPU_BASECLOCK)){
-			//			if(CPU_REMCLOCK > 0){
-			//				CPU_REMCLOCK -= CPU_BASECLOCK;
-			//			}
-			//			asynccpu_lastclock = GetTickCounter_Clock();
-			//			break;
-			//		}
-			//	}
-			//	clkcnt++;
-			//	if(clkcnt >= clkstep) clkstep -= clkstep;
-			//}else{
-				// 雑なタイミングにする
-				// 時間が無ければCPU処理をスキップ
-				if(clkcnt == 0){
-					if(CPU_REMCLOCK > 0){
-						if(timing_getcount_baseclock()!=0){
-							CPU_REMCLOCK = 0;
-							break;
-						}
-					}
-				}
-				clkcnt++;
-				if(clkcnt >= clkstep) clkstep -= clkstep;
-				// 時間に余裕があればCPUを動かし続ける
-				if(CPU_REMCLOCK <= 10000 && (g_nevent.item[NEVENT_FLAMES].flag & NEVENT_ENABLE) && g_nevent.item[NEVENT_FLAMES].proc==screendisp && g_nevent.item[NEVENT_FLAMES].clock <= CPU_BASECLOCK){
-					if(timing_getcount_baseclock()==0){
-						CPU_REMCLOCK = 10000;
-						clkstep = 1;
-						clkcnt = 0;
-					}
-				}
-			//}
-		}
-#endif
 
 		CPU_PREV_EIP = CPU_EIP;
 		CPU_STATSAVE.cpu_inst = CPU_STATSAVE.cpu_inst_default;
@@ -402,7 +387,7 @@ exec_allstep(void)
 			cpu_debug_rep_cont = 0;
 	#endif
 			(*insttable_1byte[CPU_INST_OP32][op])();
-			continue;
+			goto cpucontinue; //continue;
 		}
 
 		/* rep */
@@ -547,6 +532,97 @@ exec_allstep(void)
 				}
 			}
 		}
+cpucontinue:
+#if defined(SUPPORT_ASYNC_CPU)
+		// 非同期CPU処理
+		if(np2cfg.asynccpu){
+#define LATECOUNTER_THRESHOLD	6
+#define LATECOUNTER_THRESHOLDM	2
+			int realclock = 0;
+			if(CPU_STAT_HLT){
+				hltflag = pccore.multiple;
+			}
+			if(CPU_REMCLOCK >= 0 && !realclock && (remclkcnt > 0x7)){
+				remclkcnt = 0;
+				firstflag = 0;
+				timing = timing_getcount_baseclock();
+				if(timing!=0){
+					if(!asynccpu_fastflag && !asynccpu_lateflag){
+						if(remclock_mul < 100000) {
+							latecount++;
+							if(latecount > +LATECOUNTER_THRESHOLD){
+								if(pccore.multiple > 4){
+									UINT32 oldmultiple = pccore.multiple;
+									if(pccore.multiple > 40){
+										pccore.multiple-=3;
+									}else if(pccore.multiple > 20){
+										pccore.multiple-=2;
+									}else{
+										pccore.multiple-=1;
+									}
+									pccore.realclock = pccore.baseclock * pccore.multiple;
+									nevent_changeclock(oldmultiple, pccore.multiple);
+		
+									sound_changeclock();
+									pcm86_changeclock(oldmultiple);
+									beep_changeclock();
+									mpu98ii_changeclock();
+#if defined(SUPPORT_SMPU98)
+									smpu98_changeclock();
+#endif
+									keyboard_changeclock();
+									mouseif_changeclock();
+									gdc_updateclock();
+								}
+
+								latecount = 0;
+							}
+						}
+						asynccpu_lateflag = 1;
+
+						CPU_REMCLOCK = 0;
+						break;
+					}
+				}else{
+					if(!hltflag && !asynccpu_lateflag && g_nevent.item[NEVENT_FLAMES].proc==screendisp && g_nevent.item[NEVENT_FLAMES].clock <= CPU_BASECLOCK){
+						//CPU_REMCLOCK = 10000;
+						//oldremclock = CPU_REMCLOCK;
+						if(!asynccpu_fastflag){
+							latecount--;
+							if(latecount < -LATECOUNTER_THRESHOLDM * ((g_pcm86.fifo & 0x80) ? 10 : 1)){
+								if(pccore.multiple < pccore.maxmultiple){
+									UINT32 oldmultiple = pccore.multiple;
+									pccore.multiple+=1;
+									pccore.realclock = pccore.baseclock * pccore.multiple;
+									nevent_changeclock(oldmultiple, pccore.multiple);
+		
+									sound_changeclock();
+									pcm86_changeclock(oldmultiple);
+									beep_changeclock();
+									mpu98ii_changeclock();
+#if defined(SUPPORT_SMPU98)
+									smpu98_changeclock();
+#endif
+									keyboard_changeclock();
+									mouseif_changeclock();
+									gdc_updateclock();
+								}
+								latecount = 0;
+							}
+							asynccpu_fastflag = 1;
+						}
+					}
+					firstflag = 1;
+				}
+			}
+			remclkcnt++;
+		}
+#else
+		;
+#endif
 
 	} while (CPU_REMCLOCK > 0);
+#if defined(SUPPORT_ASYNC_CPU)
+	if(hltflag > 0) hltflag--;
+#endif
 }

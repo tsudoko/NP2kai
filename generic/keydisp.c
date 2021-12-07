@@ -3,14 +3,14 @@
  * @brief	Implementation of the key display
  */
 
-#include "compiler.h"
+#include <compiler.h>
 
 #if defined(SUPPORT_KEYDISP)
 
-#include "keydisp.h"
+#include <generic/keydisp.h>
 #include <math.h>
-#include "pccore.h"
-#include "iocore.h"
+#include <pccore.h>
+#include <io/iocore.h>
 #include "sound/psggen.h"
 
 typedef struct
@@ -101,7 +101,7 @@ typedef struct
 	KDCHANNEL	ch[KEYDISP_CHMAX];
 	OPNACTL		opnactl[5];			/*!< OPNA */
 	PSGCTL		psgctl[3];			/*!< PSG */
-	OPL3CTL		opl3ctl[1];			/*!< OPL3 */
+	OPL3CTL		opl3ctl[8];			/*!< OPL3 */
 	KDDELAYE	delaye[KEYDISP_DELAYEVENTS];
 } KEYDISP;
 
@@ -371,7 +371,7 @@ static UINT8 GetOpnaNote(const OPNACTL *k, UINT16 wFNum)
 	}
 
 	nKey += nOct * 12;
-	return (int)(np2min(nKey, 127));
+	return (int)(MIN(nKey, 127));
 }
 
 static void opnakeyoff(KEYDISP *keydisp, OPNACTL *k, UINT nChannel)
@@ -540,7 +540,7 @@ static UINT8 GetPSGNote(const PSGCTL *k, UINT16 nTone)
 	{
 	}
 	nKey += nOct * 12;
-	return (int)(np2min(nKey, 127));
+	return (int)(MIN(nKey, 127));
 }
 
 static void psgmix(KEYDISP *keydisp, PSGCTL *k)
@@ -704,7 +704,7 @@ static UINT8 GetOpl3Note(const OPL3CTL *k, UINT16 wFNum)
 	}
 
 	nKey += nOct * 12;
-	return (int)(np2min(nKey, 127));
+	return (int)(MIN(nKey, 127));
 }
 
 static void opl3keyoff(KEYDISP *keydisp, OPL3CTL *k, UINT nChannel)
@@ -970,7 +970,7 @@ static UINT getdispkeys(const KEYDISP *keydisp)
 			keys = 0;
 			break;
 	}
-	return np2min(keys, KEYDISP_CHMAX);
+	return MIN(keys, KEYDISP_CHMAX);
 }
 
 static void clearrect(CMNVRAM *vram, int x, int y, int cx, int cy)
@@ -1296,7 +1296,7 @@ BOOL keydisp_paint(CMNVRAM *vram, BOOL redraw)
 	}
 	vram->ptr += vram->xalign + vram->yalign;
 	keys = (vram->height - 1) / KEYDISP_KEYCY;
-	keys = np2min(keys, getdispkeys(&s_keydisp));
+	keys = MIN(keys, getdispkeys(&s_keydisp));
 	for (i = 0, p = s_keydisp.ch; i < keys; i++, p++)
 	{
 		draw |= draw1ch(vram, s_keydisp.framepast, p);
@@ -1307,5 +1307,12 @@ BOOL keydisp_paint(CMNVRAM *vram, BOOL redraw)
 
 kdpnt_exit:
 	return draw;
+}
+/**
+ * Set Resize Flag
+ */
+void keydisp_setresizeflag(void)
+{
+	s_keydisp.dispflag |= KEYDISP_FLAGSIZING;
 }
 #endif

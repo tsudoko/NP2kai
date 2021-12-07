@@ -18,6 +18,7 @@ enum {
 
 	BIOSOFST_09		= 0x0088,					// Keyboard
 	BIOSOFST_0c		= 0x008c,					// Serial
+	BIOSOFST_10		= 0x008e,					// (PC/AT VGA)
 
 	BIOSOFST_12		= 0x0090,					// FDC
 	BIOSOFST_13		= 0x0094,					// FDC
@@ -34,28 +35,37 @@ enum {
 	
 };
 
+#ifdef USE_CUSTOM_HOOKINST
+#define HOOKINST_DEFAULT	0x90	// NOP–½—ß
+
+typedef struct {
+	UINT8	hookinst; // BIOSƒtƒbƒN‚·‚é–½—ß default:NOP(0x90)
+} BIOSHOOKINFO;
+#endif
+
 #if defined(BIOS_IO_EMULATION)
 // np21w ver0.86 rev46 BIOS I/O emulation
 
-// XXX: I/Oã‚¢ã‚¯ã‚»ã‚¹ã¯æœ€å¤§20å›åˆ†ãã‚‰ã„ã‚ã‚Œã°ååˆ†ã ã¨æ€ã†ã®ã§æ±ºã‚æ‰“ã¡
+// XXX: I/OƒAƒNƒZƒX‚ÍÅ‘å20‰ñ•ª‚­‚ç‚¢‚ ‚ê‚Î\•ª‚¾‚Æv‚¤‚Ì‚ÅŒˆ‚ß‘Å‚¿
 #define BIOSIOEMU_DATA_MAX	20 
 
 enum {
 	BIOSIOEMU_FLAG_NONE	= 0x0,
-	BIOSIOEMU_FLAG_MB	= 0x1, // ãƒ“ãƒƒãƒˆã‚’ç«‹ã¦ã‚‹ã¨DX, AX(16bit)ã¾ãŸã¯DX, EAX(32bit)ã«ãªã‚‹ï¼ˆç«‹ã¦ãªã‘ã‚Œã°8bitã‚¢ã‚¯ã‚»ã‚¹ï¼‰
+	BIOSIOEMU_FLAG_MB	= 0x1, // ƒrƒbƒg‚ğ—§‚Ä‚é‚ÆDX, AX(16bit)‚Ü‚½‚ÍDX, EAX(32bit)‚É‚È‚éi—§‚Ä‚È‚¯‚ê‚Î8bitƒAƒNƒZƒXj
+	BIOSIOEMU_FLAG_READ	= 0x2, // ƒrƒbƒg‚ğ—§‚Ä‚é‚Æ‹ó“Ç‚İ‚·‚é
 };
 typedef struct {
-	UINT8	flag; // ã‚¢ã‚¯ã‚»ã‚¹ãƒ•ãƒ©ã‚°(ç¾çŠ¶ã§ã¯BIOSIOEMU_FLAG_NONEã®ã¿)
-	UINT16	port; // å…¥å‡ºåŠ›å…ˆãƒãƒ¼ãƒˆ
-	UINT32	data; // å‡ºåŠ›ãƒ‡ãƒ¼ã‚¿(ç¾çŠ¶ã§ã¯8bitå€¤ã®ã¿æœ‰åŠ¹)
+	UINT8	flag; // ƒAƒNƒZƒXƒtƒ‰ƒO(Œ»ó‚Å‚ÍBIOSIOEMU_FLAG_NONE‚Ì‚İ)
+	UINT16	port; // “üo—Íæƒ|[ƒg
+	UINT32	data; // o—Íƒf[ƒ^(Œ»ó‚Å‚Í8bit’l‚Ì‚İ—LŒø)
 } BIOSIOEMU_IODATA;
 
 typedef struct {
-	UINT8	enable; // BIOS I/O ã‚¨ãƒŸãƒ¥ãƒ¬ãƒ¼ã‚·ãƒ§ãƒ³æœ‰åŠ¹
-	UINT8	count; // å‡ºåŠ›ãƒ‡ãƒ¼ã‚¿æ•°
-	UINT32	oldEAX; // EAXé€€é¿ç”¨
-	UINT32	oldEDX; // EDXé€€é¿ç”¨
-	BIOSIOEMU_IODATA	data[BIOSIOEMU_DATA_MAX]; // å‡ºåŠ›å…ˆãƒãƒ¼ãƒˆã¨ãƒãƒ¼ãƒˆã«å‡ºåŠ›ã—ãŸã„ãƒ‡ãƒ¼ã‚¿ã€‚ãƒ‡ãƒ¼ã‚¿é †ãŒLIFOãªã®ã§æ³¨æ„
+	UINT8	enable; // BIOS I/O ƒGƒ~ƒ…ƒŒ[ƒVƒ‡ƒ“—LŒø
+	UINT8	count; // o—Íƒf[ƒ^”
+	UINT32	oldEAX; // EAX‘Ş”ğ—p
+	UINT32	oldEDX; // EDX‘Ş”ğ—p
+	BIOSIOEMU_IODATA	data[BIOSIOEMU_DATA_MAX]; // o—Íæƒ|[ƒg‚Æƒ|[ƒg‚Éo—Í‚µ‚½‚¢ƒf[ƒ^Bƒf[ƒ^‡‚ªLIFO‚È‚Ì‚Å’ˆÓ
 } BIOSIOEMU;
 
 #endif
@@ -67,6 +77,9 @@ extern "C" {
 
 // extern	BOOL	biosrom;
 	
+#ifdef USE_CUSTOM_HOOKINST
+extern BIOSHOOKINFO	bioshookinfo;
+#endif
 #if defined(BIOS_IO_EMULATION)
 // np21w ver0.86 rev46 BIOS I/O emulation
 extern BIOSIOEMU	biosioemu;
@@ -117,9 +130,15 @@ void bios0x1c(void);
 void bios0x1f(void);
 
 #if defined(BIOS_IO_EMULATION)
-// np21w ver0.86 rev46 BIOS I/O emulation
+// np21w ver0.86 rev46-69 BIOS I/O emulation
 void biosioemu_push8(UINT16 port, UINT8 data);
+void biosioemu_push16(UINT16 port, UINT32 data);
+void biosioemu_push8_read(UINT16 port);
+void biosioemu_push16_read(UINT16 port);
 void biosioemu_enq8(UINT16 port, UINT8 data);
+void biosioemu_enq16(UINT16 port, UINT32 data);
+void biosioemu_enq8_read(UINT16 port);
+void biosioemu_enq16_read(UINT16 port);
 #endif
 
 #ifdef __cplusplus

@@ -1,11 +1,11 @@
-#include	"compiler.h"
-#include	"cpucore.h"
+#include	<compiler.h>
+#include	<cpucore.h>
 #include	"i286c.h"
 #include	"v30patch.h"
-#include	"pccore.h"
-#include	"iocore.h"
-#include	"bios/bios.h"
-#include	"dmav30.h"
+#include	<pccore.h>
+#include	<io/iocore.h>
+#include	<bios/bios.h>
+#include	<mem/dmav30.h>
 #include	"i286c.mcr"
 #if defined(ENABLE_TRAP)
 #include "trap/steptrap.h"
@@ -234,6 +234,18 @@ I286FN v30_popf(void) {						// 9D:	popf
 	I286IRQCHECKTERM
 }
 
+I286FN v30_sahf(void) {						// 9E:	sahf
+
+	I286_WORKCLOCK(2);
+	I286_FLAGL = (I286_AH | 0xf002);	// V30(=8086) + SZ0A0P1C
+}
+
+I286FN v30_lahf(void) {						// 9F:	lahf
+
+	I286_WORKCLOCK(2);
+	I286_AH = (I286_FLAGL | 0xf002);	// V30(=8086) + SZ0A0P1C
+}
+
 I286FN v30shift_ea8_data8(void) {			// C0:	shift	EA8, DATA8
 
 	UINT8	*out;
@@ -261,7 +273,7 @@ I286FN v30shift_ea8_data8(void) {			// C0:	shift	EA8, DATA8
 				}
 			}
 			else {
-				cl = np2max(cl, 9);
+				cl = MAX(cl, 9);
 			}
 			sft_e8cl_table[(op >> 3) & 7](madr, cl);
 			return;
@@ -279,7 +291,7 @@ I286FN v30shift_ea8_data8(void) {			// C0:	shift	EA8, DATA8
 		}
 	}
 	else {
-		cl = np2max(cl, 9);
+		cl = MAX(cl, 9);
 	}
 	sft_r8cl_table[(op >> 3) & 7](out, cl);
 }
@@ -311,7 +323,7 @@ I286FN v30shift_ea16_data8(void) {			// C1:	shift	EA16, DATA8
 				}
 			}
 			else {								// shift
-				cl = np2max(cl, 17);
+				cl = MAX(cl, 17);
 			}
 			sft_e16cl_table[(op >> 3) & 7](madr, cl);
 			return;
@@ -329,7 +341,7 @@ I286FN v30shift_ea16_data8(void) {			// C1:	shift	EA16, DATA8
 		}
 	}
 	else {								// shift
-		cl = np2max(cl, 17);
+		cl = MAX(cl, 17);
 	}
 	sft_r16cl_table[(op >> 3) & 7](out, cl);
 }
@@ -385,7 +397,7 @@ I286FN v30shift_ea8_cl(void) {				// D2:	shift EA8, cl
 				}
 			}
 			else {
-				cl = np2max(cl, 9);
+				cl = MAX(cl, 9);
 			}
 			sft_e8cl_table[(op >> 3) & 7](madr, cl);
 			return;
@@ -403,7 +415,7 @@ I286FN v30shift_ea8_cl(void) {				// D2:	shift EA8, cl
 		}
 	}
 	else {
-		cl = np2max(cl, 9);
+		cl = MAX(cl, 9);
 	}
 	sft_r8cl_table[(op >> 3) & 7](out, cl);
 }
@@ -435,7 +447,7 @@ I286FN v30shift_ea16_cl(void) {				// D3:	shift EA16, cl
 				}
 			}
 			else {								// shift
-				cl = np2max(cl, 17);
+				cl = MAX(cl, 17);
 			}
 			sft_e16cl_table[(op >> 3) & 7](madr, cl);
 			return;
@@ -453,7 +465,7 @@ I286FN v30shift_ea16_cl(void) {				// D3:	shift EA16, cl
 		}
 	}
 	else {								// shift
-		cl = np2max(cl, 17);
+		cl = MAX(cl, 17);
 	}
 	sft_r16cl_table[(op >> 3) & 7](out, cl);
 }
@@ -648,6 +660,8 @@ static const V30PATCH v30patch_op[] = {
 			{0x8e, v30mov_seg_ea},			// 8E:	mov		segrem, EA
 			{0x9c, v30_pushf},				// 9C:	pushf
 			{0x9d, v30_popf},				// 9D:	popf
+			{0x9e, v30_sahf},				// 9E:	sahf
+			{0x9f, v30_lahf},				// 9F:	lahf
 #if 0 // x64環境でまともに動かないので暫定的にコメントアウト
 			{0xc0, v30shift_ea8_data8},		// C0:	shift	EA8, DATA8
 			{0xc1, v30shift_ea16_data8},	// C1:	shift	EA16, DATA8
@@ -755,6 +769,8 @@ static const V30PATCH v30patch_repe[] = {
 			{0x8e, v30mov_seg_ea},			// 8E:	mov		segrem, EA
 			{0x9c, v30_pushf},				// 9C:	pushf
 			{0x9d, v30_popf},				// 9D:	popf
+			{0x9e, v30_sahf},				// 9E:	sahf
+			{0x9f, v30_lahf},				// 9F:	lahf
 			{0xc0, v30shift_ea8_data8},		// C0:	shift	EA8, DATA8
 			{0xc1, v30shift_ea16_data8},	// C1:	shift	EA16, DATA8
 #if defined(VAEG_FIX)
@@ -860,6 +876,8 @@ static const V30PATCH v30patch_repne[] = {
 			{0x8e, v30mov_seg_ea},			// 8E:	mov		segrem, EA
 			{0x9c, v30_pushf},				// 9C:	pushf
 			{0x9d, v30_popf},				// 9D:	popf
+			{0x9e, v30_sahf},				// 9E:	sahf
+			{0x9f, v30_lahf},				// 9F:	lahf
 			{0xc0, v30shift_ea8_data8},		// C0:	shift	EA8, DATA8
 			{0xc1, v30shift_ea16_data8},	// C1:	shift	EA16, DATA8
 #if defined(VAEG_FIX)

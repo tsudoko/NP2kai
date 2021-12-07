@@ -1,14 +1,14 @@
-#include	"compiler.h"
-#include	"strres.h"
-#include	"textfile.h"
-#include	"dosio.h"
-#include	"sysmng.h"
-#include	"sxsi.h"
+#include	<compiler.h>
+#include	<common/strres.h>
+#include	<common/textfile.h>
+#include	<dosio.h>
+#include	<sysmng.h>
+#include	<fdd/sxsi.h>
 
 #ifdef SUPPORT_PHYSICAL_CDDRV
 
 #include	<winioctl.h>
-#include	<api/ntddcdrm.h>
+#include	<ntddcdrm.h>
 
 #endif
 
@@ -19,6 +19,9 @@
 #include	"diskimage/cd/cdd_ccd.h"
 #include	"diskimage/cd/cdd_mds.h"
 #include	"diskimage/cd/cdd_nrg.h"
+#ifdef SUPPORT_PHYSICAL_CDDRV
+#include	"diskimage/cd/cdd_real.h"
+#endif
 
 BRESULT sxsicd_open(SXSIDEV sxsi, const OEMCHAR *fname) {
 
@@ -143,11 +146,68 @@ BRESULT sxsicd_readraw(SXSIDEV sxsi, FILEPOS pos, void *buf) {
 	return(SUCCESS);
 }
 
+UINT sxsicd_readraw_forhash(SXSIDEV sxsi, UINT uSecNo, UINT8 *pu8Buf, UINT* puSize) {
+  UINT    uRes = 0;
+  CDINFO  cdinfo;
+  FILEH   fh;
+  FILEPOS fpos;
+  UINT16  secsize;
+  UINT    i;
+  UINT32  secs;
+
+  if(!pu8Buf || !puSize) {
+    uRes = 1;
+  }
+  if(!uRes) {
+    cdinfo = (CDINFO)sxsi->hdl;
+    if(!cdinfo) {
+      uRes = 2;
+    }
+  }
+#ifdef SUPPORT_PHYSICAL_CDDRV
+  if(!uRes) {
+    if(cdinfo->path[0] == '\\' && cdinfo->path[1] == '\\' && cdinfo->path[2] == '.' && cdinfo->path[3] == '\\') {
+      uRes = 3;
+    }
+  }
+#endif
+  if(!uRes) {
+    fh = ((CDINFO)sxsi->hdl)->fh;
+    if(!fh) {
+      uRes = 5;
+    }
+  }
+  if(!uRes) {
+    fpos = 0;
+    secs = 0;
+    for(i = 0; i < cdinfo->trks; i++) {
+      if(cdinfo->trk[i].str_sec <= uSecNo && uSecNo <= cdinfo->trk[i].str_sec + cdinfo->trk[i].sectors) {
+        fpos += (uSecNo - secs) * cdinfo->trk[i].sector_size;
+        secsize = cdinfo->trk[i].sector_size;
+        break;
+      }
+      fpos += cdinfo->trk[i].sectors * cdinfo->trk[i].sector_size;
+      secs += cdinfo->trk[i].sectors;
+    }
+    fpos += (FILEPOS)(cdinfo->trk[0].start_offset);
+    if(file_seek(fh, fpos, FSEEK_SET) != fpos) {
+      uRes = 6;
+    }
+  }
+  if(!uRes) {
+    *puSize = file_read(fh, pu8Buf, secsize);
+  }
+  if(uRes) {
+    *puSize = 0;
+  }
+
+  return uRes;
+}
 
 #else /* SUPPORT_KAI_IMAGES */
 // 旧処理もとりあえず残しておく
-#include	"cpucore.h"
-#include	"pccore.h"
+#include	<cpucore.h>
+#include	<pccore.h>
 
 static const UINT8 cd001[7] = {0x01,'C','D','0','0','1',0x01};
 
@@ -210,7 +270,7 @@ static REG8 sec2048_read(SXSIDEV sxsi, FILEPOS pos, UINT8 *buf, UINT size) {
 		return(0xd0);
 	}
 	while(size) {
-		rsize = np2min(size, 2048);
+		rsize = MIN(size, 2048);
 		CPU_REMCLOCK -= rsize;
 		if (file_read(fh, buf, rsize) != rsize) {
 			return(0xd0);
@@ -273,7 +333,7 @@ static REG8 sec2352_read(SXSIDEV sxsi, FILEPOS pos, UINT8 *buf, UINT size) {
 		if (file_seek(fh, fpos, FSEEK_SET) != fpos) {
 			return(0xd0);
 		}
-		rsize = np2min(size, 2048);
+		rsize = MIN(size, 2048);
 		CPU_REMCLOCK -= rsize;
 		if (file_read(fh, buf, rsize) != rsize) {
 			return(0xd0);
@@ -314,7 +374,10 @@ static void cd_close(SXSIDEV sxsi) {
 
 static void cd_destroy(SXSIDEV sxsi) {
 
-	_MFREE((CDINFO)sxsi->hdl);
+	if(sxsi->hdl){
+		_MFREE((CDINFO)sxsi->hdl);
+		sxsi->hdl = NULL;
+	}
 }
 
 
@@ -359,7 +422,7 @@ static BRESULT openimg(SXSIDEV sxsi, const OEMCHAR *path,
 	cdinfo->fh = fh;
 	cdinfo->type = type;
 	if ((trk != NULL) && (trks != 0)) {
-		trks = np2min(trks, NELEMENTS(cdinfo->trk) - 1);
+		trks = MIN(trks, NELEMENTS(cdinfo->trk) - 1);
 		CopyMemory(cdinfo->trk, trk, trks * sizeof(_CDTRK));
 	}
 	else {

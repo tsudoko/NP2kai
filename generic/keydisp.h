@@ -7,7 +7,7 @@
 
 #if defined(SUPPORT_KEYDISP)
 
-#include "cmndraw.h"
+#include <generic/cmndraw.h>
 
 struct _cmnpalfn
 {
@@ -27,7 +27,7 @@ enum
 
 enum
 {
-	KEYDISP_CHMAX		= 48,
+	KEYDISP_CHMAX		= 64,
 };
 
 enum
@@ -84,6 +84,7 @@ void keydisp_opnakeyon(const UINT8 *pcRegister, REG8 cData);
 void keydisp_psg(const UINT8 *pcRegister, UINT nAddress);
 void keydisp_opl3keyon(const UINT8 *pcRegister, REG8 nChannelNum, REG8 cData);
 void keydisp_midi(const UINT8 *msg);
+void keydisp_setresizeflag(void);
 
 #ifdef __cplusplus
 }

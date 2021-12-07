@@ -3,9 +3,9 @@
  * @brief	Implementation of wave file
  */
 
-#include "compiler.h"
-#include "wavefile.h"
-#include "dosio.h"
+#include <compiler.h>
+#include <common/wavefile.h>
+#include <dosio.h>
 
 #if !defined(WAVE_FORMAT_PCM)
 #define WAVE_FORMAT_PCM			1		/*!< PCM */
@@ -225,7 +225,7 @@ UINT wavefile_write(WAVEFILEH hWave, const void *lpBuffer, UINT cbBuffer)
 	}
 	while (cbBuffer)
 	{
-		UINT nSize = np2min(hWave->nRemain, cbBuffer);
+		UINT nSize = MIN(hWave->nRemain, cbBuffer);
 		memcpy(hWave->lpCurrent, lpBuffer, nSize);
 		lpBuffer = ((UINT8 *)lpBuffer) + nSize;
 		cbBuffer -= nSize;

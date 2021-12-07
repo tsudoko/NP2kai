@@ -1,15 +1,14 @@
-#include	"compiler.h"
-
+#include <common/milstr.h>
 
 // ---- ANK / UCS2 / UCS4
 
 #if defined(SUPPORT_ANK)
-int STRCALL milank_charsize(const OEMCHAR *str) {
+int STRCALL milank_charsize(const char *str) {
 
 	return((str[0] != '\0')?1:0);
 }
 
-int STRCALL milank_cmp(const OEMCHAR *str, const OEMCHAR *cmp) {
+int STRCALL milank_cmp(const char *str, const char *cmp) {
 
 	int		s;
 	int		c;
@@ -30,7 +29,31 @@ int STRCALL milank_cmp(const OEMCHAR *str, const OEMCHAR *cmp) {
 	return(0);
 }
 
-int STRCALL milank_memcmp(const OEMCHAR *str, const OEMCHAR *cmp) {
+int STRCALL milank_ncmp(const char *str, const char *cmp, unsigned int maxlen) {
+
+	int		s;
+	int		c;
+
+	do {
+		s = *str++;
+		if ((s >= 'a') && (s <= 'z')) {
+			s -= 0x20;
+		}
+		c = *cmp++;
+		if ((c >= 'a') && (c <= 'z')) {
+			c -= 0x20;
+		}
+		if (s != c) {
+			return((s > c)?1:-1);
+		}
+		if(maxlen) {
+			maxlen--;
+		}
+	} while(s && maxlen);
+	return(0);
+}
+
+int STRCALL milank_memcmp(const char *str, const char *cmp) {
 
 	int		s;
 	int		c;
@@ -51,7 +74,31 @@ int STRCALL milank_memcmp(const OEMCHAR *str, const OEMCHAR *cmp) {
 	return((s > c)?1:-1);
 }
 
-void STRCALL milank_ncpy(OEMCHAR *dst, const OEMCHAR *src, int maxlen) {
+int STRCALL milank_memncmp(const char *str, const char *cmp, unsigned int maxlen) {
+
+	int		s;
+	int		c;
+
+	do {
+		c = *cmp++;
+		if (c == 0) {
+			return(0);
+		}
+		if ((c >= 'a') && (c <= 'z')) {
+			c -= 0x20;
+		}
+		s = *str++;
+		if ((s >= 'a') && (s <= 'z')) {
+			s -= 0x20;
+		}
+		if(maxlen) {
+			maxlen--;
+		}
+	} while(s == c && maxlen);
+	return((s > c)?1:-1);
+}
+
+void STRCALL milank_ncpy(char *dst, const char *src, unsigned int maxlen) {
 
 	int		i;
 
@@ -64,7 +111,7 @@ void STRCALL milank_ncpy(OEMCHAR *dst, const OEMCHAR *src, int maxlen) {
 	}
 }
 
-void STRCALL milank_ncat(OEMCHAR *dst, const OEMCHAR *src, int maxlen) {
+void STRCALL milank_ncat(char *dst, const char *src, unsigned int maxlen) {
 
 	int		i;
 	int		j;
@@ -83,7 +130,7 @@ void STRCALL milank_ncat(OEMCHAR *dst, const OEMCHAR *src, int maxlen) {
 	}
 }
 
-OEMCHAR * STRCALL milank_chr(const OEMCHAR *str, int c) {
+char * STRCALL milank_chr(const char *str, char c) {
 
 	int		s;
 
@@ -91,7 +138,7 @@ OEMCHAR * STRCALL milank_chr(const OEMCHAR *str, int c) {
 		do {
 			s = *str;
 			if (s == c) {
-				return((OEMCHAR *)str);
+				return((char *)str);
 			}
 			str++;
 		} while(s);
@@ -112,7 +159,7 @@ int STRCALL milsjis_charsize(const char *str) {
 	return((str[pos] != '\0')?(pos+1):0);
 }
 
-int STRCALL milsjis_cmp(const char *str, const char *cmp) {
+int STRCALL milsjis_cmp(const OEMCHAR *str, const OEMCHAR *cmp) {
 
 	int		s;
 	int		c;
@@ -140,6 +187,46 @@ int STRCALL milsjis_cmp(const char *str, const char *cmp) {
 			goto mscp_err;
 		}
 	} while(s);
+	return(0);
+
+mscp_err:
+	return((s > c)?1:-1);
+}
+
+int STRCALL milsjis_ncmp(const OEMCHAR *str, const OEMCHAR *cmp, unsigned int maxlen) {
+
+	int		s;
+	int		c;
+
+	do {
+		s = (UINT8)*str++;
+		if ((((s ^ 0x20) - 0xa1) & 0xff) < 0x3c) {
+			c = (UINT8)*cmp++;
+			if (s != c) {
+				goto mscp_err;
+			}
+			if(maxlen) {
+				maxlen--;
+			}
+			s = (UINT8)*str++;
+			c = (UINT8)*cmp++;
+		}
+		else {
+			if (((s - 'a') & 0xff) < 26) {
+				s -= 0x20;
+			}
+			c = (UINT8)*cmp++;
+			if (((c - 'a') & 0xff) < 26) {
+				c -= 0x20;
+			}
+		}
+		if (s != c) {
+			goto mscp_err;
+		}
+		if(maxlen) {
+			maxlen--;
+		}
+	} while(s && maxlen);
 	return(0);
 
 mscp_err:
@@ -177,7 +264,44 @@ int STRCALL milsjis_memcmp(const char *str, const char *cmp) {
 	return((s > c)?1:-1);
 }
 
-int STRCALL milsjis_kanji1st(const char *str, int pos) {
+int STRCALL milsjis_memncmp(const char *str, const char *cmp, unsigned int maxlen) {
+
+	int		s;
+	int		c;
+
+	do {
+		c = (UINT8)*cmp++;
+		if ((((c ^ 0x20) - 0xa1) & 0xff) < 0x3c) {
+			s = (UINT8)*str++;
+			if (c != s) {
+				break;
+			}
+			if(maxlen) {
+				maxlen--;
+			}
+			c = (UINT8)*cmp++;
+			s = (UINT8)*str++;
+		}
+		else if (c) {
+			if (((c - 'a') & 0xff) < 26) {
+				c &= ~0x20;
+			}
+			s = (UINT8)*str++;
+			if (((s - 'a') & 0xff) < 26) {
+				s &= ~0x20;
+			}
+		}
+		else {
+			return(0);
+		}
+		if(maxlen) {
+			maxlen--;
+		}
+	} while(s == c && maxlen);
+	return((s > c)?1:-1);
+}
+
+int STRCALL milsjis_kanji1st(const char *str, unsigned int pos) {
 
 	int		ret;
 
@@ -189,7 +313,7 @@ int STRCALL milsjis_kanji1st(const char *str, int pos) {
 	return(ret);
 }
 
-int STRCALL milsjis_kanji2nd(const char *str, int pos) {
+int STRCALL milsjis_kanji2nd(const char *str, unsigned int pos) {
 
 	int		ret;
 
@@ -200,7 +324,7 @@ int STRCALL milsjis_kanji2nd(const char *str, int pos) {
 	return(ret);
 }
 
-void STRCALL milsjis_ncpy(char *dst, const char *src, int maxlen) {
+void STRCALL milsjis_ncpy(OEMCHAR *dst, const OEMCHAR *src, unsigned int maxlen) {
 
 	int		i;
 
@@ -218,7 +342,7 @@ void STRCALL milsjis_ncpy(char *dst, const char *src, int maxlen) {
 	}
 }
 
-void STRCALL milsjis_ncat(char *dst, const char *src, int maxlen) {
+void STRCALL milsjis_ncat(OEMCHAR *dst, const OEMCHAR *src, unsigned int maxlen) {
 
 	int		i;
 	int		j;
@@ -242,7 +366,7 @@ void STRCALL milsjis_ncat(char *dst, const char *src, int maxlen) {
 	}
 }
 
-char * STRCALL milsjis_chr(const char *str, int c) {
+OEMCHAR * STRCALL milsjis_chr(const OEMCHAR *str, OEMCHAR c) {
 
 	int		s;
 
@@ -250,7 +374,7 @@ char * STRCALL milsjis_chr(const char *str, int c) {
 		do {
 			s = *str;
 			if (s == c) {
-				return((char *)str);
+				return((OEMCHAR *)str);
 			}
 			if ((((s ^ 0x20) - 0xa1) & 0xff) < 0x3c) {
 				str++;
@@ -275,7 +399,7 @@ int STRCALL mileuc_charsize(const char *str) {
 	return((str[pos] != '\0')?(pos+1):0);
 }
 
-int STRCALL mileuc_cmp(const char *str, const char *cmp) {
+int STRCALL mileuc_cmp(const OEMCHAR *str, const OEMCHAR *cmp) {
 
 	int		s;
 	int		c;
@@ -303,6 +427,46 @@ int STRCALL mileuc_cmp(const char *str, const char *cmp) {
 			goto mscp_err;
 		}
 	} while(s);
+	return(0);
+
+mscp_err:
+	return((s > c)?1:-1);
+}
+
+int STRCALL mileuc_ncmp(const OEMCHAR *str, const OEMCHAR *cmp, unsigned int maxlen) {
+
+	int		s;
+	int		c;
+
+	do {
+		s = (UINT8)*str++;
+		if (s & 0x80) {
+			c = (UINT8)*cmp++;
+			if (s != c) {
+				goto mscp_err;
+			}
+			if(maxlen) {
+				maxlen--;
+			}
+			s = (UINT8)*str++;
+			c = (UINT8)*cmp++;
+		}
+		else {
+			if (((s - 'a') & 0xff) < 26) {
+				s -= 0x20;
+			}
+			c = (UINT8)*cmp++;
+			if (((c - 'a') & 0xff) < 26) {
+				c -= 0x20;
+			}
+		}
+		if (s != c) {
+			goto mscp_err;
+		}
+		if(maxlen) {
+			maxlen--;
+		}
+	} while(s && maxlen);
 	return(0);
 
 mscp_err:
@@ -340,7 +504,44 @@ int STRCALL mileuc_memcmp(const char *str, const char *cmp) {
 	return((s > c)?1:-1);
 }
 
-int STRCALL mileuc_kanji1st(const char *str, int pos) {
+int STRCALL mileuc_memncmp(const char *str, const char *cmp, unsigned int maxlen) {
+
+	int		s;
+	int		c;
+
+	do {
+		c = (UINT8)*cmp++;
+		if (c & 0x80) {
+			s = (UINT8)*str++;
+			if (c != s) {
+				break;
+			}
+			if(maxlen) {
+				maxlen--;
+			}
+			c = (UINT8)*cmp++;
+			s = (UINT8)*str++;
+		}
+		else if (c) {
+			if (((c - 'a') & 0xff) < 26) {
+				c -= 0x20;
+			}
+			s = (UINT8)*str++;
+			if (((s - 'a') & 0xff) < 26) {
+				s -= 0x20;
+			}
+		}
+		else {
+			return(0);
+		}
+		if(maxlen) {
+			maxlen--;
+		}
+	} while(s == c && maxlen);
+	return((s > c)?1:-1);
+}
+
+int STRCALL mileuc_kanji1st(const char *str, unsigned int pos) {
 
 	int		ret;
 
@@ -351,7 +552,7 @@ int STRCALL mileuc_kanji1st(const char *str, int pos) {
 	return(ret);
 }
 
-int STRCALL mileuc_kanji2nd(const char *str, int pos) {
+int STRCALL mileuc_kanji2nd(const char *str, unsigned int pos) {
 
 	int		ret;
 
@@ -362,7 +563,7 @@ int STRCALL mileuc_kanji2nd(const char *str, int pos) {
 	return(ret);
 }
 
-void STRCALL mileuc_ncpy(char *dst, const char *src, int maxlen) {
+void STRCALL mileuc_ncpy(OEMCHAR *dst, const OEMCHAR *src, unsigned int maxlen) {
 
 	int		i;
 
@@ -380,7 +581,7 @@ void STRCALL mileuc_ncpy(char *dst, const char *src, int maxlen) {
 	}
 }
 
-void STRCALL mileuc_ncat(char *dst, const char *src, int maxlen) {
+void STRCALL mileuc_ncat(OEMCHAR *dst, const OEMCHAR *src, unsigned int maxlen) {
 
 	int		i;
 	int		j;
@@ -404,7 +605,7 @@ void STRCALL mileuc_ncat(char *dst, const char *src, int maxlen) {
 	}
 }
 
-char * STRCALL mileuc_chr(const char *str, int c) {
+char * STRCALL mileuc_chr(const OEMCHAR *str, OEMCHAR c) {
 
 	int		s;
 
@@ -451,7 +652,7 @@ int STRCALL milutf8_charsize(const char *str) {
 	return(0);
 }
 
-int STRCALL milutf8_cmp(const char *str, const char *cmp) {
+int STRCALL milutf8_cmp(const OEMCHAR *str, const OEMCHAR *cmp) {
 
 	int		s;
 	int		c;
@@ -469,6 +670,30 @@ int STRCALL milutf8_cmp(const char *str, const char *cmp) {
 			return((s > c)?1:-1);
 		}
 	} while(s);
+	return(0);
+}
+
+int STRCALL milutf8_ncmp(const OEMCHAR *str, const OEMCHAR *cmp, unsigned int maxlen) {
+
+	int		s;
+	int		c;
+
+	do {
+		s = (UINT8)*str++;
+		if (((s - 'a') & 0xff) < 26) {
+			s -= 0x20;
+		}
+		c = (UINT8)*cmp++;
+		if (((c - 'a') & 0xff) < 26) {
+			c -= 0x20;
+		}
+		if (s != c) {
+			return((s > c)?1:-1);
+		}
+		if(maxlen) {
+			maxlen--;
+		}
+	} while(s && maxlen);
 	return(0);
 }
 
@@ -493,17 +718,41 @@ int STRCALL milutf8_memcmp(const char *str, const char *cmp) {
 	return((s > c)?1:-1);
 }
 
-int STRCALL milutf8_kanji1st(const char *str, int pos) {
+int STRCALL milutf8_memncmp(const char *str, const char *cmp, unsigned int maxlen) {
+
+	int		s;
+	int		c;
+
+	do {
+		c = (UINT8)*cmp++;
+		if (c == 0) {
+			return(0);
+		}
+		if (((c - 'a') & 0xff) < 26) {
+			c -= 0x20;
+		}
+		s = (UINT8)*str++;
+		if (((s - 'a') & 0xff) < 26) {
+			s -= 0x20;
+		}
+		if(maxlen) {
+			maxlen--;
+		}
+	} while(s == c && maxlen);
+	return((s > c)?1:-1);
+}
+
+int STRCALL milutf8_kanji1st(const char *str, unsigned int pos) {
 
 	return(((str[pos] & 0xc0) >= 0xc0)?1:0);
 }
 
-int STRCALL milutf8_kanji2nd(const char *str, int pos) {
+int STRCALL milutf8_kanji2nd(const char *str, unsigned int pos) {
 
 	return(((str[pos] & 0xc0) == 0x80)?1:0);
 }
 
-void STRCALL milutf8_ncpy(char *dst, const char *src, int maxlen) {
+void STRCALL milutf8_ncpy(OEMCHAR *dst, const OEMCHAR *src, unsigned int maxlen) {
 
 	int		i;
 
@@ -523,7 +772,7 @@ void STRCALL milutf8_ncpy(char *dst, const char *src, int maxlen) {
 	}
 }
 
-void STRCALL milutf8_ncat(char *dst, const char *src, int maxlen) {
+void STRCALL milutf8_ncat(OEMCHAR *dst, const OEMCHAR *src, unsigned int maxlen) {
 
 	int		i;
 	int		j;
@@ -549,7 +798,7 @@ void STRCALL milutf8_ncat(char *dst, const char *src, int maxlen) {
 	}
 }
 
-char * STRCALL milutf8_chr(const char *str, int c) {
+char * STRCALL milutf8_chr(const OEMCHAR *str, OEMCHAR c) {
 
 	int		s;
 

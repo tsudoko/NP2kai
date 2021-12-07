@@ -1,31 +1,34 @@
-#include	"compiler.h"
-#include	"strres.h"
+#include	<compiler.h>
+#include	<common/strres.h>
 #if defined(OSLANG_UCS2)
 #include	"oemtext.h"
 #endif
 #include	"taskmng.h"
-#include	"cpucore.h"
-#include	"pccore.h"
-#include	"iocore.h"
-#include	"bios/sxsibios.h"
+#include	<cpucore.h>
+#include	<pccore.h>
+#include	<io/iocore.h>
+#include	<bios/sxsibios.h>
 #if defined(SUPPORT_HOSTDRV)
-#include	"hostdrv.h"
+#include	<generic/hostdrv.h>
 #endif
-#include	"sound/sound.h"
-#include	"sound/beep.h"
-#include	"sound/fmboard.h"
-#include	"sound/soundrom.h"
-#include	"cbus/mpu98ii.h"
+#include	<sound/sound.h>
+#include	<sound/beep.h>
+#include	<sound/fmboard.h>
+#include	<sound/soundrom.h>
+#include	<cbus/mpu98ii.h>
+#if defined(SUPPORT_SMPU98)
+#include	<cbus/smpu98.h>
+#endif
 #if defined(SUPPORT_IDEIO)
-#include	"cbus/ideio.h"
+#include	<cbus/ideio.h>
 #endif
 #if defined(SUPPORT_WAB) && defined(SUPPORT_CL_GD5430)
-#include	"wab/cirrus_vga_extern.h"
-#include	"wab/wab.h"
+#include	<wab/cirrus_vga_extern.h>
+#include	<wab/wab.h>
 #endif
 #include	"np2.h"
 #if defined(SUPPORT_HRTIMER)
-#include	"timemng.h"
+#include	<timemng.h>
 #endif
 
 
@@ -65,12 +68,15 @@ static const OEMCHAR str_pentium[] = OEMTEXT("PENTIUM");
 static const OEMCHAR str_mhz[] = OEMTEXT("%uMHz");
 
 // np21/w dynamic config
-#define NP21W_SWITCH_DUMMY		0
-#define NP21W_SWITCH_GD54XXTYPE	1
-#define NP21W_SWITCH_SOUNDBOARD	2
-#define NP21W_SWITCH_SYNCCLOCK	3
-#define NP21W_SWITCH_PCIENABLE	4
-#define NP21W_SWITCH_ASYNCCPU		5
+#define NP21W_SWITCH_DUMMY				0
+#define NP21W_SWITCH_GD54XXTYPE			1
+#define NP21W_SWITCH_SOUNDBOARD			2
+#define NP21W_SWITCH_SYNCCLOCK			3
+#define NP21W_SWITCH_PCIENABLE			4
+#define NP21W_SWITCH_ASYNCCPU			5
+#define NP21W_SWITCH_DISABLESOUNDROM	6
+#define NP21W_SWITCH_SETIDEWAIT_R		7
+#define NP21W_SWITCH_SETIDEWAIT_W		8
 
 
 static void setoutstr(const OEMCHAR *str) {
@@ -116,9 +122,9 @@ static void np2sysp_cpu(const void *arg1, long arg2) {
 
 static void np2sysp_clock(const void *arg1, long arg2) {
 
-	OEMCHAR	str[16];
+	OEMCHAR	str[64];
 
-	OEMSPRINTF(str, str_mhz, (pccore.realclock + 500000) / 1000000);
+	OEMSNPRINTF(str, sizeof(str), str_mhz, (pccore.realclock + 500000) / 1000000);
 	setoutstr(str);
 	(void)arg1;
 	(void)arg2;
@@ -126,9 +132,9 @@ static void np2sysp_clock(const void *arg1, long arg2) {
 
 static void np2sysp_multiple(const void *arg1, long arg2) {
 
-	OEMCHAR	str[16];
+	OEMCHAR	str[64];
 
-	OEMSPRINTF(str, str_u, pccore.multiple);
+	OEMSNPRINTF(str, sizeof(str), str_u, pccore.multiple);
 	setoutstr(str);
 	(void)arg1;
 	(void)arg2;
@@ -143,9 +149,9 @@ static void np2sysp_hwreset(const void *arg1, long arg2) {
 
 static void np2sysp_changeclock(const void *arg1, long arg2) {
 
-	OEMCHAR	str[16];
+	OEMCHAR	str[64];
 
-	OEMSPRINTF(str, str_mhz, (pccore.realclock + 500000) / 1000000);
+	OEMSNPRINTF(str, sizeof(str), str_mhz, (pccore.realclock + 500000) / 1000000);
 	setoutstr(str);
 	(void)arg1;
 	(void)arg2;
@@ -154,25 +160,31 @@ static void np2sysp_changeclock(const void *arg1, long arg2) {
 // np21/w extensions
 static void np2sysp_cngclkmul(const void *arg1, long arg2) {
 
-	OEMCHAR	str[16];
-	UINT8 oldclockmul = pccore.multiple;
+	OEMCHAR	str[64];
+	UINT8 oldclockmul = pccore.maxmultiple;
+	UINT8 oldclockmult = pccore.multiple;
 	UINT8 newclockmul = (np2sysp.outval >> 24);
 	
 	if(newclockmul > 0) {
 		np2sysp.outval = (oldclockmul << 24) + (np2sysp.outval >> 8);
 
 		pccore.multiple = newclockmul;
+		pccore.maxmultiple = newclockmul;
 		pccore.realclock = pccore.baseclock * pccore.multiple;
 		
+		pcm86_changeclock(oldclockmult);
 		sound_changeclock();
 		beep_changeclock();
 		mpu98ii_changeclock();
+#if defined(SUPPORT_SMPU98)
+		smpu98_changeclock();
+#endif
 		keyboard_changeclock();
 		mouseif_changeclock();
 		gdc_updateclock();
 	}
 
-	OEMSPRINTF(str, OEMTEXT("%d"), pccore.multiple);
+	OEMSPRINTF(str, OEMTEXT("%d"), pccore.maxmultiple);
 	setoutstr(str);
 	(void)arg1;
 	(void)arg2;
@@ -180,7 +192,7 @@ static void np2sysp_cngclkmul(const void *arg1, long arg2) {
 
 static void np2sysp_getconfig(const void *arg1, long arg2) {
 
-	OEMCHAR	str[16];
+	OEMCHAR	str[64];
 	UINT8 configid = (np2sysp.outval >> 24) & 0xff;
 	UINT8 configvalue = 0;
 	UINT16 configvalue16 = 0;
@@ -193,7 +205,7 @@ static void np2sysp_getconfig(const void *arg1, long arg2) {
 #if defined(SUPPORT_WAB) && defined(SUPPORT_CL_GD5430)
 		configvalue16 = np2clvga.gd54xxtype;
 #endif
-		OEMSPRINTF(str, OEMTEXT("%d"), configvalue16);
+		OEMSNPRINTF(str, sizeof(str), OEMTEXT("%d"), configvalue16);
 		setoutstr(str);
 		return;
 	case NP21W_SWITCH_PCIENABLE:
@@ -206,19 +218,30 @@ static void np2sysp_getconfig(const void *arg1, long arg2) {
 		configvalue = np2cfg.asynccpu ? 1 : 0;
 #endif	/* defined(SUPPORT_ASYNC_CPU) */
 		break;
+	case NP21W_SWITCH_DISABLESOUNDROM:
+		configvalue = 0; // 常時0
+		break;
+#if defined(SUPPORT_IDEIO)
+	case NP21W_SWITCH_SETIDEWAIT_R:
+		configvalue = (UINT8)(ideio.rwait >> 8);
+		break;
+	case NP21W_SWITCH_SETIDEWAIT_W:
+		configvalue = (UINT8)(ideio.wwait >> 8);
+		break;
+#endif
 	case NP21W_SWITCH_DUMMY:
 	default:
 		break;
 	}
 
-	OEMSPRINTF(str, OEMTEXT("%d"), configvalue);
+	OEMSNPRINTF(str, sizeof(str), OEMTEXT("%d"), configvalue);
 	setoutstr(str);
 	(void)arg1;
 	(void)arg2;
 }
 static void np2sysp_cngconfig(const void *arg1, long arg2) {
 
-	OEMCHAR	str[16];
+	OEMCHAR	str[64];
 	UINT8 configid = (np2sysp.outval >> 24) & 0xff;
 	UINT8 configvalue = (np2sysp.outval >> 16) & 0xff;
 	UINT16 configvalue16 = 0;
@@ -241,7 +264,7 @@ static void np2sysp_cngconfig(const void *arg1, long arg2) {
 		if(configvalue != (UINT8)g_nSoundID){
 			sound_reset();
 			fmboard_unbind();
-			if(g_nSoundID == SOUNDID_PC_9801_118){
+			if(g_nSoundID == SOUNDID_PC_9801_118 || g_nSoundID == SOUNDID_PC_9801_118_SB16){
 				iocore_detachout(cs4231.port[10]);
 				iocore_detachinp(cs4231.port[10]);
 				iocore_detachout(cs4231.port[10]+1);
@@ -252,10 +275,10 @@ static void np2sysp_cngconfig(const void *arg1, long arg2) {
 			fmboard_bind();
 			if (((pccore.model & PCMODELMASK) >= PCMODEL_VX) &&
 				(pccore.sound & 0x7e)) {
-				if(g_nSoundID == SOUNDID_MATE_X_PCM || ((g_nSoundID == SOUNDID_PC_9801_118 || g_nSoundID == SOUNDID_PC_9801_86_118) && np2cfg.snd118irqf == np2cfg.snd118irqp) || g_nSoundID == SOUNDID_PC_9801_86_WSS){
+				if(g_nSoundID == SOUNDID_MATE_X_PCM || ((g_nSoundID == SOUNDID_PC_9801_118 || g_nSoundID == SOUNDID_PC_9801_86_118 || g_nSoundID == SOUNDID_PC_9801_118_SB16 || g_nSoundID == SOUNDID_PC_9801_86_118_SB16) && np2cfg.snd118irqf == np2cfg.snd118irqp) || g_nSoundID == SOUNDID_PC_9801_86_WSS || g_nSoundID == SOUNDID_WAVESTAR || g_nSoundID==SOUNDID_PC_9801_86_WSS_SB16){
 					iocore_out8(0x188, 0x27);
 					iocore_out8(0x18a, 0x30);
-					if(g_nSoundID == SOUNDID_PC_9801_118 || g_nSoundID == SOUNDID_PC_9801_86_118){
+					if(g_nSoundID == SOUNDID_PC_9801_118 || g_nSoundID == SOUNDID_PC_9801_86_118 || g_nSoundID==SOUNDID_WAVESTAR || g_nSoundID == SOUNDID_PC_9801_118_SB16 || g_nSoundID == SOUNDID_PC_9801_86_118_SB16){
 						iocore_out8(cs4231.port[4], 0x27);
 						iocore_out8(cs4231.port[4]+2, 0x30);
 					}
@@ -264,7 +287,7 @@ static void np2sysp_cngconfig(const void *arg1, long arg2) {
 					iocore_out8(0x18a, 0x3f);
 				}
 			}
-			if(g_nSoundID == SOUNDID_PC_9801_118 || g_nSoundID == SOUNDID_PC_9801_86_118){
+			if(g_nSoundID == SOUNDID_PC_9801_118 || g_nSoundID == SOUNDID_PC_9801_86_118 || g_nSoundID == SOUNDID_PC_9801_118_SB16 || g_nSoundID == SOUNDID_PC_9801_86_118_SB16){
 				iocore_attachout(cs4231.port[10], mpu98ii_o0);
 				iocore_attachinp(cs4231.port[10], mpu98ii_i0);
 				iocore_attachout(cs4231.port[10]+1, mpu98ii_o2);
@@ -297,7 +320,7 @@ static void np2sysp_cngconfig(const void *arg1, long arg2) {
 		np2wab.paletteChanged = 1;
 		pc98_cirrus_vga_resetresolution();
 #endif
-		OEMSPRINTF(str, OEMTEXT("%d"), configvalue16);
+		OEMSNPRINTF(str, sizeof(str), OEMTEXT("%d"), configvalue16);
 		setoutstr(str);
 		return;
 	case NP21W_SWITCH_PCIENABLE:
@@ -316,12 +339,25 @@ static void np2sysp_cngconfig(const void *arg1, long arg2) {
 		configvalue = np2cfg.asynccpu ? 1 : 0;
 #endif	/* defined(SUPPORT_ASYNC_CPU) */
 		break;
+	case NP21W_SWITCH_DISABLESOUNDROM:
+		if(configvalue == 1){
+			soundrom_reset(); // サウンドROMを消す
+		}
+		break;
+#if defined(SUPPORT_IDEIO)
+	case NP21W_SWITCH_SETIDEWAIT_R:
+		ideio.rwait = configvalue << 8;
+		break;
+	case NP21W_SWITCH_SETIDEWAIT_W:
+		ideio.wwait = configvalue << 8;
+		break;
+#endif
 	case NP21W_SWITCH_DUMMY:
 	default:
 		break;
 	}
 
-	OEMSPRINTF(str, OEMTEXT("%d"), configvalue);
+	OEMSNPRINTF(str, sizeof(str), OEMTEXT("%d"), configvalue);
 	setoutstr(str);
 	(void)arg1;
 	(void)arg2;

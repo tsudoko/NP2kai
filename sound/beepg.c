@@ -1,7 +1,7 @@
-#include	"compiler.h"
-#include	"cpucore.h"
-#include	"sound.h"
-#include	"beep.h"
+#include	<compiler.h>
+#include	<cpucore.h>
+#include	<sound/sound.h>
+#include	<sound/beep.h>
 
 
 extern	BEEPCFG		beepcfg;
@@ -61,7 +61,7 @@ const BPEVENT	*bev;
 	do {
 		if (clk >= (1 << 16)) {
 			r = clk >> 16;
-			r = np2min(r, count);
+			r = MIN(r, count);
 			clk -= r << 16;
 			count -= r;
 			if (bp->lastenable) {

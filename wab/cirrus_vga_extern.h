@@ -29,6 +29,8 @@
 
 #pragma once
 
+#include <io/iocore.h>
+
 #define CIRRUS_VRAM_SIZE_1MB	(1024 * 1024)
 #define CIRRUS_VRAM_SIZE_2MB	(2048 * 1024)
 #define CIRRUS_VRAM_SIZE_4MB	(4096 * 1024)
@@ -94,18 +96,8 @@
 
 #define CIRRUS_MELCOWAB_OFS_DEFAULT	0x0
 
-typedef	signed char		int8_t;
-typedef	unsigned char	uint8_t;
-typedef	signed short	int16_t;
-typedef	unsigned short	uint16_t_;
-#if !defined(_3DS) && !defined(VITA)
-typedef	signed int		int32_t;
-#endif
-typedef	unsigned int	uint32_t_;
-#if !defined(NP2_X11) && !defined(NP2_SDL2) && !defined(__LIBRETRO__)
-typedef	signed __int64	int64_t;
-typedef	unsigned __int64	uint64_t;
-#endif
+typedef uint16_t uint16_t_;
+typedef uint32_t uint32_t_;
 
 typedef uint32_t_ ram_addr_t;
 typedef uint32_t_ target_phys_addr_t;
@@ -200,6 +192,10 @@ typedef struct {
 	REG8	mmioenable;
 	UINT32	gd54xxtype;
 	UINT32	defgd54xxtype;
+	
+#if defined(SUPPORT_VGA_MODEX)
+	UINT8	modex;
+#endif
 } NP2CLVGA;
 //typedef struct {
 //} NP2CLVGA2;
@@ -224,19 +220,18 @@ void pc98_cirrus_vga_resetresolution(void);
 void pc98_cirrus_vga_save(void);
 void pc98_cirrus_vga_load(void);
 
-#if defined(NP2_X11) || defined(NP2_SDL2) || defined(__LIBRETRO__)
-#define __fastcall
-#endif
-UINT16 __fastcall cirrusvga_ioport_read_wrap16(UINT addr);
-UINT32 __fastcall cirrusvga_ioport_read_wrap32(UINT addr);
-void __fastcall cirrusvga_ioport_write_wrap16(UINT addr, UINT16 dat);
-void __fastcall cirrusvga_ioport_write_wrap32(UINT addr, UINT32 dat);
+UINT IOOUTCALL cirrusvga_ioport_read_wrap16(UINT addr);
+UINT IOOUTCALL cirrusvga_ioport_read_wrap32(UINT addr);
+void IOOUTCALL cirrusvga_ioport_write_wrap16(UINT addr, UINT dat);
+void IOOUTCALL cirrusvga_ioport_write_wrap32(UINT addr, UINT dat);
 
 int pc98_cirrus_isWABport(UINT port);
 
 void pc98_cirrus_vga_updatePCIaddr();
 void pc98_cirrus_vga_initVRAMWindowAddr();
 void pc98_cirrus_vga_setvramsize();
+
+void pc98_cirrus_vga_setVRAMWindowAddr3(UINT32 addr);
 
 #ifdef __cplusplus
 }

@@ -1,59 +1,39 @@
-#include	"compiler.h"
+#include	<compiler.h>
 
 #if 1
 #undef	TRACEOUT
 #define	TRACEOUT(s)	(void)(s)
+//static void trace_fmt_ex(const char *fmt, ...)
+//{
+//	char stmp[2048];
+//	va_list ap;
+//	va_start(ap, fmt);
+//	vsprintf(stmp, fmt, ap);
+//	strcat(stmp, "¥n");
+//	va_end(ap);
+//	OutputDebugStringA(stmp);
+//}
+//#define	TRACEOUT(s)	trace_fmt_ex s
 #endif	/* 1 */
 
 // winでidentifyまでは取得に行くんだけどな…ってAnex86も同じか
 
 #if defined(SUPPORT_IDEIO)
 
-#include	"dosio.h"
-#include	"cpucore.h"
-#include	"pccore.h"
-#include	"iocore.h"
-#include	"ideio.h"
-#include	"atapicmd.h"
-#include	"fdd/sxsi.h"
-#include	"sound.h"
+#include	<dosio.h>
+#include	<cpucore.h>
+#include	<pccore.h>
+#include	<io/iocore.h>
+#include	<cbus/ideio.h>
+#include	<cbus/atapicmd.h>
+#include	<fdd/sxsi.h>
+#include	<sound/sound.h>
 #include	"idebios.res"
-#include	"bios/biosmem.h"
-#include	"fmboard.h"
-#include	"cs4231io.h"
-
-#if defined(_WINDOWS) && !defined(__LIBRETRO__)
-#include	<process.h>
-#endif
+#include	<bios/biosmem.h>
+#include	<sound/fmboard.h>
+#include	<cbus/cs4231io.h>
 
 	IDEIO	ideio;
-	//
-	//UINT8   ideio_mediastatusnotification[4] = {0};
-	//UINT8   ideio_mediachangeflag[4] = {0};
-	
-#if defined(_WINDOWS) && !defined(__LIBRETRO__)
-static int ideio_thread_initialized = 0;
-static HANDLE ideio_threadR = NULL;
-static HANDLE ideio_threadW = NULL;
-static IDEDRV ideio_thread_drv = NULL;
-#else
-	// TODO: 非Windows用コードを書く
-#endif
-
-//static void ideio_enter_criticalsection(void){
-//#if defined(_WINDOWS) && !defined(__LIBRETRO__)
-//	EnterCriticalSection(&ideio_cs);
-//#else
-//	// TODO: 非Windows用コードを書く
-//#endif
-//}
-//static void ideio_leave_criticalsection(void){
-//#if defined(_WINDOWS) && !defined(__LIBRETRO__)
-//	LeaveCriticalSection(&ideio_cs);
-//#else
-//	// TODO: 非Windows用コードを書く
-//#endif
-//}
 
 static IDEDEV getidedev(void) {
 
@@ -86,6 +66,7 @@ static IDEDRV getidedrv(void) {
 static const char serial[] = "824919341192        ";
 static const char firm[] = "A5U.1200";
 static const char model[] = "QUANTUM FIREBALL CR                     ";
+static const char model48[] = "NYANTUM YARNBALL CR                     ";
 
 static const char cdrom_serial[] = "1.0                 ";
 static const char cdrom_firm[]   = "        ";
@@ -97,7 +78,7 @@ static BRESULT setidentify(IDEDRV drv) {
 	UINT16	tmp[256];
 	UINT8	*p;
 	UINT	i;
-	UINT32	size;
+	FILELEN	size;
 
 	sxsi = sxsi_getptr(drv->sxsidrv);
 	if ((sxsi == NULL) || (!(sxsi->flag & SXSIFLAG_READY) && drv->device != IDETYPE_CDROM)) {
@@ -129,11 +110,11 @@ static BRESULT setidentify(IDEDRV drv) {
 		tmp[49] = 0x0200;		// support LBA
 		tmp[51] = 0x0200;
 		tmp[53] = 0x0001;
-		size = sxsi->cylinders * sxsi->surfaces * sxsi->sectors;
-		tmp[54] = size / drv->surfaces / drv->sectors;//sxsi->cylinders;
+		size = (FILELEN)sxsi->cylinders * sxsi->surfaces * sxsi->sectors;
+		tmp[54] = (UINT16)(size / drv->surfaces / drv->sectors);//sxsi->cylinders;
 		tmp[55] = drv->surfaces;//sxsi->surfaces;
 		tmp[56] = drv->sectors;//sxsi->sectors;
-		size = (UINT32)tmp[54] * tmp[55] * tmp[56];
+		size = (FILELEN)tmp[54] * tmp[55] * tmp[56];
 		tmp[57] = (UINT16)size;
 		tmp[58] = (UINT16)(size >> 16);
 #if IDEIO_MULTIPLE_MAX > 0
@@ -142,10 +123,38 @@ static BRESULT setidentify(IDEDRV drv) {
 		tmp[60] = (UINT16)size;
 		tmp[61] = (UINT16)(size >> 16);
 		tmp[63] = 0x0000;		// no support multiword DMA
-
-		tmp[80] = 0x003e;		// support ATA-1 to 5
-		tmp[81] = 0;
-		tmp[82] = 0x0200;		// support DEVICE RESET
+		
+#if defined(SUPPORT_IDEIO_48BIT)
+		if(sxsi->totals > 0xfffffff){
+			// 48-bit LBA
+			FILELEN tmpCyl = (UINT32)(sxsi->totals / 255 / 255);
+			tmp[80] = 0x007e;		// support ATA-1 to 6
+			tmp[81] = 0;
+			tmp[82] = 0x0200;		// support DEVICE RESET
+			tmp[83] = 0x4400;		// 48-bit Address feature set supported
+			tmp[86] = 0x4400;		// 48-bit Address feature set supported
+			tmp[100] = (UINT16)(sxsi->totals);			// Maximum user LBA for 48-bit Address feature set 1
+			tmp[101] = (UINT16)(sxsi->totals >> 16);	// Maximum user LBA for 48-bit Address feature set 2
+			tmp[102] = (UINT16)(sxsi->totals >> 32);	// Maximum user LBA for 48-bit Address feature set 3
+			tmp[103] = (UINT16)(sxsi->totals >> 48);	// Maximum user LBA for 48-bit Address feature set 4
+			tmp[60] = (UINT16)0xffff;
+			tmp[61] = (UINT16)0xfff;
+			tmp[54] = (UINT16)(tmpCyl < 0xffff ? tmpCyl : 0xffff);
+			tmp[55] = 255;
+			tmp[56] = 255;
+			size = (FILELEN)tmp[54] * tmp[55] * tmp[56];
+			tmp[57] = (UINT16)size;
+			tmp[58] = (UINT16)(size >> 16);
+			for (i=0; i<20; i++) {
+				tmp[27+i] = (model48[i*2] << 8) + model48[i*2+1];
+			}
+		}
+#endif
+		{
+			tmp[80] = 0x003e;		// support ATA-1 to 5
+			tmp[81] = 0;
+			tmp[82] = 0x0200;		// support DEVICE RESET
+		}
 	}
 	else if (drv->device == IDETYPE_CDROM) {
 		tmp[0] = 0x8580;		// ATAPI,CD-ROM,removable,12bytes PACKET
@@ -197,6 +206,7 @@ static void setintr(IDEDRV drv) {
 	}
 }
 
+// 割り込み後にBSYを解除し、DRQをセットする（コマンド継続中など）
 void ideioint(NEVENTITEM item) {
 	
 	IDEDRV	drv;
@@ -231,6 +241,7 @@ void ideioint(NEVENTITEM item) {
 	}
    (void)item;
 }
+// 割り込み後にBSYを解除し、DRQも解除する（コマンド終了時など）
 void ideioint2(NEVENTITEM item) {
 	
 	IDEDRV	drv;
@@ -249,9 +260,11 @@ void ideioint2(NEVENTITEM item) {
 
 	//BUSY解除
 	if(dev->drv[0].status != 0xFF){
+		dev->drv[0].status &= ~IDESTAT_DRQ;
 		dev->drv[0].status &= ~IDESTAT_BSY;
 	}
 	if(dev->drv[1].status != 0xFF){
+		dev->drv[1].status &= ~IDESTAT_DRQ;
 		dev->drv[1].status &= ~IDESTAT_BSY;
 	}
 
@@ -300,6 +313,9 @@ static void cmdabort(IDEDRV drv) {
 	TRACEOUT(("ideio: cmdabort()"));
 	drv->status = IDESTAT_DRDY | IDESTAT_ERR;
 	drv->error = IDEERR_ABRT;
+#if defined(SUPPORT_IDEIO_48BIT)
+	drv->lba48mode = 0;
+#endif
 	setintr(drv);
 }
 
@@ -317,6 +333,11 @@ static void drvreset(IDEDRV drv) {
 		drv->sc = 0x01;
 		drv->sn = 0x01;
 		drv->cy = 0x0000;
+#if defined(SUPPORT_IDEIO_48BIT)
+		drv->lba48[1] = drv->lba48[2] = drv->lba48[3] = drv->lba48[4] = drv->lba48[5] = 0;
+		drv->lba48[0] = 1;
+		drv->lba48sc = 0x0001;
+#endif
 		//drv->status = IDESTAT_DRDY;
 		drv->status = IDESTAT_DRDY | IDESTAT_DSC;
 	}
@@ -342,7 +363,7 @@ static void incsec(IDEDRV drv) {
 
 	if (!(drv->dr & IDEDEV_LBA)) {
 		drv->sn++;
-		if (drv->sn <= drv->sectors) {
+		if (drv->sn <= drv->sectors && drv->sn!=0) {
 			return;
 		}
 		drv->sn = 1;
@@ -354,6 +375,18 @@ static void incsec(IDEDRV drv) {
 		drv->cy++;
 	}
 	else {
+#if defined(SUPPORT_IDEIO_48BIT)
+		// 48-bit Address feature set
+		{
+			int i;
+			for(i=0;i<6;i++){
+				drv->lba48[i]++;
+				if (drv->lba48[i]) {
+					break;
+				}
+			}
+		}
+#endif
 		drv->sn++;
 		if (drv->sn) {
 			return;
@@ -366,95 +399,67 @@ static void incsec(IDEDRV drv) {
 	}
 }
 
+void ideio_setcursec(FILEPOS pos) {
+	IDEDRV drv;
+#if defined(SUPPORT_IDEIO_48BIT)
+	int shift = 0;
+	int i;
+#endif
+	drv = getidedrv();
+	if (drv) {
+		if (!(drv->dr & IDEDEV_LBA)) {
+			drv->sn = (pos % drv->sectors) + 1;
+			pos /= drv->sectors;
+			drv->hd = (pos % drv->surfaces);
+			pos /= drv->surfaces;
+			drv->cy = pos & 0xffff;
+		}
+		else {
+			drv->sn = (pos & 0xff);
+			drv->cy = ((pos >> 8) & 0xffff);
+			drv->hd = ((pos >> 24) & 0xff);
+
+#if defined(SUPPORT_IDEIO_48BIT)
+			// 48-bit Address feature set
+			for(i=0;i<6;i++){
+				drv->lba48[i] = (pos >> shift) & 0xff;
+				shift += 8;
+			}
+#endif
+		}
+	}
+}
 static FILEPOS getcursec(const IDEDRV drv) {
 
 	FILEPOS	ret;
-
-	if (!(drv->dr & IDEDEV_LBA)) {
-		ret = drv->cy;
-		ret *= drv->surfaces;
-		ret += drv->hd;
-		ret *= drv->sectors;
-		ret += (drv->sn - 1);
-	}
-	else {
-		ret = drv->sn;
-		ret |= (drv->cy << 8);
-		ret |= (drv->hd << 24);
+	
+#if defined(SUPPORT_IDEIO_48BIT)
+	if(drv->lba48mode){
+		int i;
+		ret = 0;
+		for(i=0;i<6;i++){
+			ret <<= 8;
+			ret |= drv->lba48[5-i];
+		}
+	}else
+#endif
+	{
+		if (!(drv->dr & IDEDEV_LBA)) {
+			ret = drv->cy;
+			ret *= drv->surfaces;
+			ret += drv->hd;
+			ret *= drv->sectors;
+			ret += (drv->sn - 1);
+		}
+		else {
+			ret = drv->sn;
+			ret |= (drv->cy << 8);
+			ret |= (drv->hd << 24);
+		}
 	}
 	return(ret);
 }
 
-#if defined(_WINDOWS) && !defined(__LIBRETRO__)
-void ideio_threadfuncR_part(IDEDRV drv) {
-	FILEPOS	sec;
-	sec = getcursec(drv);
-	//TRACEOUT(("readsec->drv %d sec %x cnt %d thr %d",
-	//							drv->sxsidrv, sec, drv->mulcnt, drv->multhr));
-	if (sxsi_read(drv->sxsidrv, sec, drv->buf, 512)) {
-		TRACEOUT(("read error!"));
-		cmdabort(drv);
-	}else{
-		drv->bufdir = IDEDIR_IN;
-		drv->buftc = IDETC_TRANSFEREND;
-		drv->bufpos = 0;
-		drv->bufsize = 512;
-
-		if ((drv->mulcnt & (drv->multhr - 1)) == 0) {
-			drv->status = IDESTAT_DRDY | IDESTAT_DSC | IDESTAT_DRQ;
-			drv->error = 0;
-			if(!np2cfg.useasynchd && ideio.rwait > 0){
-				drv->status |= IDESTAT_BSY;
-				drv->status &= ~IDESTAT_DRQ;
-				setdintr(drv, 0, 0, ideio.rwait);
-				//mem[MEMB_DISK_INTH] &= ~0x01; 
-			}else{
-				drv->status &= ~(IDESTAT_BSY);
-				drv->status |= IDESTAT_DRQ;
-				setintr(drv);
-			}
-			//setintr(drv);
-		}else{
-			drv->status &= ~(IDESTAT_BSY);
-		}
-		drv->mulcnt++;
-	}
-}
-unsigned int __stdcall ideio_threadfuncR(void* vdParam) {
-	IDEDRV drv = NULL;
-
-	while(ideio_thread_initialized){
-		drv = ideio_thread_drv;
-		ideio_threadfuncR_part(drv);
-
-		SuspendThread(ideio_threadR);
-	}
-	
-    _endthreadex(0);
-	return 0;
-
-}
-static void readsec(IDEDRV drv) {
-
-	if (drv->device != IDETYPE_HDD) {
-		cmdabort(drv);
-		return;
-	}
-	
-	drv->status |= IDESTAT_BSY;
-	
-	if(np2cfg.useasynchd){
-		if(ideio_threadR){
-			ideio_thread_drv = drv;
-			ResumeThread(ideio_threadR);
-		}else{
-			ideio_threadfuncR_part(drv);
-		}
-	}else{
-		ideio_threadfuncR_part(drv);
-	}
-}
-#else
 static void readsec(IDEDRV drv) {
 
 	FILEPOS	sec;
@@ -473,7 +478,7 @@ static void readsec(IDEDRV drv) {
 	drv->buftc = IDETC_TRANSFEREND;
 	drv->bufpos = 0;
 	drv->bufsize = 512;
-
+	// READはI/Oポートで読み取るデータが準備できたら割り込み
 	if ((drv->mulcnt & (drv->multhr - 1)) == 0) {
 		drv->status = IDESTAT_DRDY | IDESTAT_DSC | IDESTAT_DRQ;
 		drv->error = 0;
@@ -481,7 +486,6 @@ static void readsec(IDEDRV drv) {
 			drv->status |= IDESTAT_BSY;
 			drv->status &= ~IDESTAT_DRQ;
 			setdintr(drv, 0, 0, ideio.rwait);
-			//mem[MEMB_DISK_INTH] &= ~0x01; 
 		}else{
 			setintr(drv);
 		}
@@ -493,7 +497,6 @@ static void readsec(IDEDRV drv) {
 read_err:
 	cmdabort(drv);
 }
-#endif
 
 static void writeinit(IDEDRV drv) {
 	if (drv->device == IDETYPE_NONE) {
@@ -525,19 +528,21 @@ static void writesec(IDEDRV drv) {
 	drv->buftc = IDETC_TRANSFEREND;
 	drv->bufpos = 0;
 	drv->bufsize = 512;
-
+	
+	// WRITEはデータ書き込みが完了したら割り込み
 	if ((drv->mulcnt & (drv->multhr - 1)) == 0) {
 		drv->status = IDESTAT_DRDY | IDESTAT_DSC | IDESTAT_DRQ;
 		drv->error = 0;
 		setintr(drv);
-		//if((ideio.bios == IDETC_BIOS && ideio.mwait > 0) || ideio.wwait > 0){
-		//	drv->status |= IDESTAT_BSY;
+		//if(ideio.bios == IDETC_BIOS && ideio.wwait > 0){
 		//	drv->status &= ~IDESTAT_DRQ;
+		//	drv->status |= IDESTAT_BSY;
 		//	setdintr(drv, 0, 0, ideio.wwait);
-		//	//mem[MEMB_DISK_INTH] &= ~0x01; 
 		//}else{
 		//	setintr(drv);
 		//}
+	}else{
+		drv->status &= ~IDESTAT_BSY;
 	}
 	return;
 
@@ -553,7 +558,17 @@ static void IOOUTCALL ideio_o430(UINT port, REG8 dat) {
 	TRACEOUT(("ideio setbank%d %.2x [%.4x:%.8x]",
 									(port >> 1) & 1, dat, CPU_CS, CPU_EIP));
 	if (!(dat & 0x80)) {
-		ideio.bank[(port >> 1) & 1] = dat;
+		//char buf[100] = {0};
+		if ((port >> 1) & 1) {
+			// 432h
+			ideio.bank[(port >> 1) & 1] = dat & 0x71;
+		}
+		else {
+			// 430h
+			ideio.bank[(port >> 1) & 1] = dat & 0x71;
+		}
+		//sprintf(buf, "0x%x¥n", dat);
+		//OutputDebugStringA(buf);
 	}
 }
 
@@ -569,13 +584,18 @@ static REG8 IOINPCALL ideio_i430(UINT port) {
 	}
 	else {
 		// 430h
+		int compmode = (sxsi_getdevtype(0)!=SXSIDEV_CDROM && sxsi_getdevtype(1)!=SXSIDEV_CDROM && sxsi_getdevtype(2)==SXSIDEV_CDROM && sxsi_getdevtype(3)!=SXSIDEV_CDROM); // 旧機種互換モード？
 		IDEDEV	dev;
 		dev = getidedev();
 		//
-		// Win2000はbit6が1の時スレーブデバイスを見に行く
-		//
-		if (dev->drv[1].device != IDETYPE_NONE) {
-			ret |= 0x40;
+		if(dev){
+			ret = (compmode ? 0 : 1);
+			//
+			// Win2000はbit6が1の時スレーブデバイスを見に行く
+			//
+			if (dev->drv[1].device != IDETYPE_NONE) {
+				ret |= 0x40;
+			}
 		}
 	}
 	ideio.bank[bank] = ret & (~0x80);
@@ -593,8 +613,18 @@ static void IOOUTCALL ideio_o433(UINT port, REG8 dat) {
 }
 
 static REG8 IOINPCALL ideio_i433(UINT port) {
+	
+	UINT	bank;
+	REG8	ret;
+	
+	bank = (port >> 1) & 1;
+	ret = (ideio.bank[bank] & 0x1) ? 0x2 : 0x0;
 
-	return(0x00);
+	if(ret == 0x2 && ideio.dev[1].drv[0].device==IDETYPE_NONE && ideio.dev[1].drv[1].device==IDETYPE_NONE){
+		ret = 0;
+	}
+	//OutputDebugStringA("IN 433h¥n");
+	return(ret);
 }
 
 static void IOOUTCALL ideio_o435(UINT port, REG8 dat) {
@@ -630,6 +660,10 @@ static void IOOUTCALL ideio_o644(UINT port, REG8 dat) {
 	drv = getidedrv();
 	if (drv) {
 		drv->sc = dat;
+#if defined(SUPPORT_IDEIO_48BIT)
+		drv->lba48sc <<= 8;
+		drv->lba48sc |= dat;
+#endif
 		TRACEOUT(("ideio set SC %.2x [%.4x:%.8x]", dat, CPU_CS, CPU_EIP));
 	}
 	(void)port;
@@ -642,6 +676,10 @@ static void IOOUTCALL ideio_o646(UINT port, REG8 dat) {
 	drv = getidedrv();
 	if (drv) {
 		drv->sn = dat;
+#if defined(SUPPORT_IDEIO_48BIT)
+		drv->lba48[3] = drv->lba48[0];
+		drv->lba48[0] = dat;
+#endif
 		TRACEOUT(("ideio set SN %.2x [%.4x:%.8x]", dat, CPU_CS, CPU_EIP));
 	}
 	(void)port;
@@ -655,6 +693,10 @@ static void IOOUTCALL ideio_o648(UINT port, REG8 dat) {
 	if (drv) {
 		drv->cy &= 0xff00;
 		drv->cy |= dat;
+#if defined(SUPPORT_IDEIO_48BIT)
+		drv->lba48[4] = drv->lba48[1];
+		drv->lba48[1] = dat;
+#endif
 		TRACEOUT(("ideio set CYL %.2x [%.4x:%.8x]", dat, CPU_CS, CPU_EIP));
 	}
 	(void)port;
@@ -668,6 +710,10 @@ static void IOOUTCALL ideio_o64a(UINT port, REG8 dat) {
 	if (drv) {
 		drv->cy &= 0x00ff;
 		drv->cy |= dat << 8;
+#if defined(SUPPORT_IDEIO_48BIT)
+		drv->lba48[5] = drv->lba48[2];
+		drv->lba48[2] = dat;
+#endif
 		TRACEOUT(("ideio set CYH %.2x [%.4x:%.8x]", dat, CPU_CS, CPU_EIP));
 	}
 	(void)port;
@@ -696,6 +742,14 @@ static void IOOUTCALL ideio_o64c(UINT port, REG8 dat) {
 		//if(!drvnum) dev->drv[drvnum].error |= IDEERR_BBK;
 	}
 	dev->drv[drvnum].dr = dat & 0xf0;
+//#if defined(SUPPORT_IDEIO_48BIT)
+//	{
+//		SXSIDEV sxsi = sxsi_getptr(dev->drv[drvnum].sxsidrv);
+//		if(sxsi->totals > 0xfffffff){
+//			dev->drv[drvnum].dr |= IDEDEV_LBA;
+//		}
+//	}
+//#endif
 	dev->drv[drvnum].hd = dat & 0x0f;
 	dev->drivesel = drvnum;
 	TRACEOUT(("ideio set DRHD %.2x [%.4x:%.8x]", dat, CPU_CS, CPU_EIP));
@@ -708,7 +762,6 @@ static void IOOUTCALL ideio_o64e(UINT port, REG8 dat) {
 	IDEDRV	drv, d;
 	IDEDEV	dev;
 	int		i;
-	FILEPOS	sec;
 
 	// execute device diagnostic
 	if (dat == 0x90) {
@@ -769,6 +822,9 @@ static void IOOUTCALL ideio_o64e(UINT port, REG8 dat) {
 				//drv->hd = 0x00;
 				//drv->sc = 0x00;
 				drv->cy = 0x0000;
+#if defined(SUPPORT_IDEIO_48BIT)
+				drv->lba48[0] = drv->lba48[1] = drv->lba48[2] = drv->lba48[3] = drv->lba48[4] = drv->lba48[5] = 0;
+#endif
 				//if (!(drv->dr & IDEDEV_LBA)) {
 				//	drv->sn = 0x01;
 				//}
@@ -1011,8 +1067,98 @@ static void IOOUTCALL ideio_o64e(UINT port, REG8 dat) {
 
 		case 0xf8:		// READ NATIVE MAX ADDRESS
 			TRACEOUT(("ideio: READ NATIVE MAX ADDRESS reg = %.2x", drv->wp));
+			{
+				SXSIDEV sxsi;
+				sxsi = sxsi_getptr(drv->sxsidrv);
+				drv->sn = sxsi->totals & 0xff;
+				drv->cy = (sxsi->totals >> 8) & 0xffff;
+				drv->hd = (drv->hd & 0xf0) | ((sxsi->totals >> 24) & 0xf);
+
+				
+			}
+			
+#if defined(SUPPORT_IDEIO_48BIT)
+		case 0x24:		// read EXT
+			TRACEOUT(("ideio: read sector EXT"));
+			if (drv->device == IDETYPE_HDD) {
+				drv->mulcnt = 0;
+				drv->multhr = 1;
+				drv->lba48mode = 1;
+				readsec(drv);
+			}
+			else {
+				cmdabort(drv);
+			}
+			break;
+
+		case 0x34:		// write EXT
+			TRACEOUT(("ideio: write sector EXT"));
+			if (drv->device == IDETYPE_HDD) {
+				drv->mulcnt = 0;
+				drv->multhr = 1;
+				drv->lba48mode = 1;
+				writeinit(drv);
+			}
+			else {
+				cmdabort(drv);
+			}
+			break;
+		case 0x42:		// read EXT verify(w)
+			TRACEOUT(("ideio: read verify EXT"));
+			drv->status = drv->status & ~IDESTAT_BSY;
+			setintr(drv);
+			break;
+
+		case 0x29:		// read multiple EXT
+			TRACEOUT(("ideio: read multiple EXT"));
+#if IDEIO_MULTIPLE_MAX > 0
+			if (drv->device == IDETYPE_HDD) {
+				drv->mulcnt = 0;
+				drv->multhr = drv->mulmode;
+				readsec(drv);
+				break;
+			}
+#endif
 			cmdabort(drv);
 			break;
+
+		case 0x39:		// write multiple EXT
+			TRACEOUT(("ideio: write multiple EXT"));
+#if IDEIO_MULTIPLE_MAX > 0
+			if (drv->device == IDETYPE_HDD) {
+				drv->mulcnt = 0;
+				drv->multhr = drv->mulmode;
+				writesec(drv);
+				break;
+			}
+#endif
+			cmdabort(drv);
+			break;
+
+		case 0xea:		// flush cache EXT
+			TRACEOUT(("ideio: flush cache EXT"));
+			drv->status = IDESTAT_DRDY;
+			drv->error = 0;
+			setintr(drv);
+			break;
+
+		case 0x27:		// READ NATIVE MAX ADDRESS EXT
+			TRACEOUT(("ideio: READ NATIVE MAX ADDRESS EXT reg = %.2x", drv->wp));
+			{
+				SXSIDEV sxsi;
+				sxsi = sxsi_getptr(drv->sxsidrv);
+				if(drv->ctrl & 0x80){ // HOB bit
+					drv->sn = (sxsi->totals >> 24) & 0xff;
+					drv->cy = (sxsi->totals >> 32) & 0xffff;
+				}else{
+					drv->sn = sxsi->totals & 0xff;
+					drv->cy = (sxsi->totals >> 8) & 0xffff;
+				}
+			}
+			//cmdabort(drv);
+			break;
+
+#endif
 			
 		default:
 			panic("ideio: unknown command %.2x", dat);
@@ -1263,49 +1409,6 @@ static void IOOUTCALL ideio_o1e8e(UINT port, REG8 dat) {
 
 // ---- data
 
-#if defined(_WINDOWS) && !defined(__LIBRETRO__)
-void ideio_threadfuncW_part(IDEDRV drv) {
-	
-	FILEPOS	sec;
-	sec = getcursec(drv);
-	//TRACEOUT(("writesec->drv %d sec %x cnt %d thr %d",
-	//			drv->sxsidrv, sec, drv->mulcnt, drv->multhr));
-	if (sxsi_write(drv->sxsidrv, sec, drv->buf, drv->bufsize)) {
-		TRACEOUT(("write error!"));
-		cmdabort(drv);
-		return;
-	}
-	drv->mulcnt++;
-	incsec(drv);
-	drv->sc--;
-	if (drv->sc) {
-		writesec(drv);
-	}else{
-		// 1セクタ書き込み完了
-		if(!np2cfg.useasynchd && ideio.wwait > 0){
-			drv->status |= IDESTAT_BSY;
-			setdintr2(drv, 0, 0, ideio.rwait);
-		}else{
-			setintr(drv);
-		}
-	}
-	drv->status &= ~(IDESTAT_BSY);
-}
-unsigned int __stdcall ideio_threadfuncW(void* vdParam) {
-	IDEDRV drv = NULL;
-
-	while(ideio_thread_initialized){
-		drv = ideio_thread_drv;
-		ideio_threadfuncW_part(drv);
-
-		SuspendThread(ideio_threadW);
-	}
-	
-    _endthreadex(0);
-	return 0;
-
-}
-#endif
 void IOOUTCALL ideio_w16(UINT port, REG16 value) {
 
 	IDEDEV  dev;
@@ -1325,28 +1428,13 @@ void IOOUTCALL ideio_w16(UINT port, REG16 value) {
 		drv->bufpos += 2;
 		if (drv->bufpos >= drv->bufsize) {
 			drv->status &= ~IDESTAT_DRQ;
-			//if((ideio.bios == IDETC_BIOS && ideio.mwait > 0) || ideio.wwait > 0){
-			//	//割り込み前にポーリングされる問題の対策
-			//	dev->drv[0].status |= IDESTAT_BSY;
-			//	dev->drv[1].status |= IDESTAT_BSY;
-			//}
 			switch(drv->cmd) {
 				case 0x30:
 				case 0x31:
+				case 0x34:
 				case 0xc5:
-#if defined(_WINDOWS) && !defined(__LIBRETRO__)
+				case 0x39:
 					drv->status |= IDESTAT_BSY;
-					if(np2cfg.useasynchd){
-						if(ideio_threadW){
-							ideio_thread_drv = drv;
-							ResumeThread(ideio_threadW);
-						}else{
-							ideio_threadfuncW_part(drv);
-						}
-					}else{
-						ideio_threadfuncW_part(drv);
-					}
-#else
 					sec = getcursec(drv);
 					//TRACEOUT(("writesec->drv %d sec %x cnt %d thr %d",
 					//			drv->sxsidrv, sec, drv->mulcnt, drv->multhr));
@@ -1358,36 +1446,38 @@ void IOOUTCALL ideio_w16(UINT port, REG16 value) {
 					drv->mulcnt++;
 					incsec(drv);
 					drv->sc--;
-					if (drv->sc) {
-						writesec(drv);
-					}else{
-						// 1セクタ書き込み完了
-						//if((ideio.bios == IDETC_BIOS && ideio.mwait > 0) || ideio.wwait > 0){
-						//	drv->status |= IDESTAT_BSY;
-						//	setdintr(drv, 0, 0, ideio.rwait);
-						//}else{
-							setintr(drv);
-						//}
-					}
-					//drv->mulcnt++;
-					//drv->sc--;
-					//if (!drv->sc) {
-					//	//カウントが終わったらDRQを消す
-					//	drv->bufpos = 0;
-					//	drv->error = 0;
-					//	if((ideio.bios == IDETC_BIOS && ideio.mwait > 0) || ideio.wwait > 0){
-					//		drv->status |= IDESTAT_BSY;
-					//		setdintr(drv, 0, 0, ideio.wwait);
-					//	}else{
-					//		setintr(drv);
-					//	}
-					//	break;
-					//}
-
-					////次セクタ書き込み準備
-					//incsec(drv);
-					//writesec(drv);
+#if defined(SUPPORT_IDEIO_48BIT)
+					if(drv->lba48mode){
+						drv->lba48sc--;
+						drv->sc = (UINT8)drv->lba48sc;
+						if (drv->lba48sc) {
+							writesec(drv);
+						}else{
+							// セクタ書き込み完了
+							if(ideio.bios == IDETC_BIOS && ideio.wwait > 0){
+								setdintr2(drv, 0, 0, ideio.wwait);
+							}else{
+								setintr(drv);
+								drv->status &= ~(IDESTAT_BSY);
+							}
+							drv->sc = 0;
+							drv->lba48mode = 0;
+						}
+					}else
 #endif
+					{
+						if (drv->sc) {
+							writesec(drv);
+						}else{
+							// セクタ書き込み完了
+							if(ideio.bios == IDETC_BIOS && ideio.wwait > 0){
+								setdintr2(drv, 0, 0, ideio.wwait);
+							}else{
+								setintr(drv);
+								drv->status &= ~(IDESTAT_BSY);
+							}
+						}
+					}
 					break;
 
 				case 0xa0:
@@ -1424,13 +1514,29 @@ REG16 IOINPCALL ideio_r16(UINT port) {
 			switch(drv->cmd) {
 				case 0x20:
 				case 0x21:
+				case 0x24:
 				case 0xc4:
+				case 0x29:
 					incsec(drv);
 					drv->sc--;
-					if (drv->sc) {
-						readsec(drv);
-					}else{
-						// 読み取り終わり
+#if defined(SUPPORT_IDEIO_48BIT)
+					if(drv->lba48mode){
+						drv->lba48sc--;
+						drv->sc = (UINT8)drv->lba48sc;
+						if (drv->lba48sc) {
+							readsec(drv);
+						}else{
+							// 読み取り終わり
+							drv->lba48mode = 0;
+						}
+					}else
+#endif
+					{
+						if (drv->sc) {
+							readsec(drv);
+						}else{
+							// 読み取り終わり
+						}
 					}
 					break;
 
@@ -1473,6 +1579,7 @@ const UINT8	*ptr;
 	SINT32	samplen_d;
 static SINT32	sampcount2_n = 0;
 	SINT32	sampcount2_d;
+	UINT	mute = 0;
 
 	samplen_n = soundcfg.rate;
 	samplen_d = 44100;
@@ -1481,21 +1588,21 @@ static SINT32	sampcount2_n = 0;
 	//	samplen_n /= 100;
 	//	samplen_d /= 100;
 	//}
-	//if(g_nSoundID == SOUNDID_PC_9801_118 || g_nSoundID == SOUNDID_MATE_X_PCM || g_nSoundID == SOUNDID_PC_9801_86_WSS){
+	//if(g_nSoundID == SOUNDID_PC_9801_118 || g_nSoundID == SOUNDID_MATE_X_PCM || g_nSoundID == SOUNDID_PC_9801_86_WSS || g_nSoundID == SOUNDID_WAVESTAR || g_nSoundID == SOUNDID_PC_9801_118_SB16 || g_nSoundID == SOUNDID_PC_9801_86_118_SB16){
 	//	if(cdda_softvolumereg_L != cs4231.devvolume[0x32]){
 	//		cdda_softvolumereg_L = cs4231.devvolume[0x32];
-	//		if(cdda_softvolumereg_L & 0x80){ // FM L Mute
+	//		if(cdda_softvolumereg_L & 0x80){ // CD L Mute
 	//			cdda_softvolume_L = 0;
 	//		}else{
-	//			cdda_softvolume_L = ((~cdda_softvolumereg_L) & 0x1f); // FM L Volume
+	//			cdda_softvolume_L = ((~cdda_softvolumereg_L) & 0x1f); // CD L Volume
 	//		}
 	//	}
 	//	if(cdda_softvolumereg_R != cs4231.devvolume[0x33]){
 	//		cdda_softvolumereg_R = cs4231.devvolume[0x33];
-	//		if(cdda_softvolumereg_R & 0x80){ // FM R Mute
+	//		if(cdda_softvolumereg_R & 0x80){ // CD R Mute
 	//			cdda_softvolume_R = 0;
 	//		}else{
-	//			cdda_softvolume_R = ((~cdda_softvolumereg_R) & 0x1f); // FM R Volume
+	//			cdda_softvolume_R = ((~cdda_softvolumereg_R) & 0x1f); // CD R Volume
 	//		}
 	//	}
 	//}else{
@@ -1512,7 +1619,7 @@ static SINT32	sampcount2_n = 0;
 		return(FAILURE);
 	}
 	while(count) {
-		r = np2min(count, drv->dabufrem * samplen_n / samplen_d);
+		r = MIN(count, drv->dabufrem * samplen_n / samplen_d);
 		if (r) {
 			count -= r;
 			ptr = drv->dabuf + 2352 - (drv->dabufrem * 4);
@@ -1564,9 +1671,36 @@ static SINT32	sampcount2_n = 0;
 			drv->daflag = 0x13;
 			return(FAILURE);
 		}
-		if (sxsicd_readraw(sxsi, drv->dacurpos, drv->dabuf) != SUCCESS) {
-			drv->daflag = 0x14;
-			return(FAILURE);
+		if(np2cfg.cddtskip){
+			CDTRK	trk;
+			UINT	tracks;
+			trk = sxsicd_gettrk(sxsi, &tracks);
+			r = tracks;
+			while(r) {
+				r--;
+				if (trk[r].pos <= drv->dacurpos) {
+					break;
+				}
+			}
+			if(trk[r].adr_ctl!=TRACKTYPE_AUDIO){
+				if(drv->dacurpos != 0){
+					// オーディオトラックでない場合は強制的に次に飛ばす
+					if(r==tracks-1){
+						drv->dacurpos = trk[0].pos;
+					}else{
+						drv->dacurpos = trk[r+1].pos;
+					}
+				}
+				mute = 1;
+			}
+		}
+		if(mute){
+			memset(drv->dabuf, 0, sizeof(drv->dabuf));
+		}else{
+			if (sxsicd_readraw(sxsi, drv->dacurpos, drv->dabuf) != SUCCESS) {
+				drv->daflag = 0x14;
+				return(FAILURE);
+			}
 		}
 		drv->dalength--;
 		drv->dacurpos++;
@@ -1574,149 +1708,6 @@ static SINT32	sampcount2_n = 0;
 	}
 	return(SUCCESS);
 }
-//static BRESULT SOUNDCALL playdevaudio(IDEDRV drv, SINT32 *pcm, UINT count) {
-//
-//	SXSIDEV	sxsi;
-//	UINT	r;
-//const UINT8	*ptr;
-//	SINT	sampl;
-//	SINT	sampr;
-//	double	samplen;
-//	double	sampcount2;
-//
-//	samplen = (double)soundcfg.rate / 44100;
-//
-//	sxsi = sxsi_getptr(drv->sxsidrv);
-//	if ((sxsi == NULL) || (sxsi->devtype != SXSIDEV_CDROM) ||
-//		(!(sxsi->flag & SXSIFLAG_READY))) {
-//		drv->daflag = 0x14;
-//		return(FAILURE);
-//	}
-//	while(count) {
-//		r = np2min(count, drv->dabufrem * samplen);
-//		if (r) {
-//			count -= r;
-//			ptr = drv->dabuf + 2352 - (drv->dabufrem * 4);
-//			drv->dabufrem -= r / samplen;
-//			if(samplen < 1.0){
-//				sampcount2 = 0;
-//				do {
-//					sampl = ((SINT8)ptr[1] << 8) + ptr[0];
-//					sampr = ((SINT8)ptr[3] << 8) + ptr[2];
-//					ptr += 4;
-//					sampcount2 += samplen;
-//					if((int)(sampcount2) > 0){
-//						pcm[0] += (SINT)((int)(sampl)*np2cfg.davolume/255);
-//						pcm[1] += (SINT)((int)(sampr)*np2cfg.davolume/255);
-//						pcm += 2 * (int)(sampcount2);
-//						--r;
-//						sampcount2 = sampcount2 - (int)sampcount2;
-//					}
-//				} while(r > 0);
-//			}else{
-//				sampcount2 = samplen;
-//				do {
-//					sampl = ((SINT8)ptr[1] << 8) + ptr[0];
-//					sampr = ((SINT8)ptr[3] << 8) + ptr[2];
-//					pcm[0] += (SINT)((int)(sampl)*np2cfg.davolume/255);
-//					pcm[1] += (SINT)((int)(sampr)*np2cfg.davolume/255);
-//					sampcount2 -= 1.0;
-//					if(sampcount2 < 1.0){
-//						sampcount2 += samplen;
-//						ptr += 4;
-//					}
-//					pcm += 2;
-//				} while(--r);
-//			}
-//		}
-//		if (count == 0) {
-//			break;
-//		}
-//		if (drv->dalength == 0) {
-//			drv->daflag = 0x13;
-//			return(FAILURE);
-//		}
-//		if (sxsicd_readraw(sxsi, drv->dacurpos, drv->dabuf) != SUCCESS) {
-//			drv->daflag = 0x14;
-//			return(FAILURE);
-//		}
-//		drv->dalength--;
-//		drv->dacurpos++;
-//		drv->dabufrem = sizeof(drv->dabuf) / 4;
-//	}
-//	return(SUCCESS);
-//}
-//static BRESULT SOUNDCALL playdevaudio(IDEDRV drv, SINT32 *pcm, UINT count) {
-//
-//	SXSIDEV	sxsi;
-//	UINT	r;
-//const UINT8	*ptr;
-//	SINT	sampl;
-//	SINT	sampr;
-//	double	sampbias = soundcfg.rate / 44100.0;
-//	SINT	samploop;
-//	double	samploop2 = 0.0;
-//	SINT	samploopcount;
-//	double	sampcount2 = 0.0;
-//
-//	sxsi = sxsi_getptr(drv->sxsidrv);
-//	if ((sxsi == NULL) || (sxsi->devtype != SXSIDEV_CDROM) ||
-//		(!(sxsi->flag & SXSIFLAG_READY))) {
-//		drv->daflag = 0x14;
-//		return(FAILURE);
-//	}
-//	while(count) {
-//		r = np2min(count, drv->dabufrem * sampbias);
-//		if (r) {
-//			count -= r;
-//			ptr = drv->dabuf + 2352 - drv->dabufrem * 4;
-//			drv->dabufrem -= r / sampbias;
-//			if(sampbias >= 1.0) {
-//				sampcount2 = sampbias;
-//				do {
-//					sampl = ((SINT8)ptr[1] << 8) + ptr[0];
-//					sampr = ((SINT8)ptr[3] << 8) + ptr[2];
-//					pcm[0] += (SINT)((int)(sampl)*np2cfg.davolume/255);
-//					pcm[1] += (SINT)((int)(sampr)*np2cfg.davolume/255);
-//					sampcount2 -= 1.0;
-//					if(sampcount2 < 1.0) {
-//						sampcount2 += sampbias;
-//						ptr += 4;
-//					}
-//					pcm += 2;
-//				} while(--r);
-//			} else {
-//				do {
-//					sampl = ((SINT8)ptr[1] << 8) + ptr[0];
-//					sampr = ((SINT8)ptr[3] << 8) + ptr[2];
-//					samploopcount = (sampbias + samploop2) < 1.0 ? 1 : (SINT)(sampbias + samploop2);
-//					for(samploop = 0; samploop < samploopcount; samploop++) {
-//						pcm[samploop * 2 + 0] += (SINT)((int)(sampl)*np2cfg.davolume/255);
-//						pcm[samploop * 2 + 1] += (SINT)((int)(sampr)*np2cfg.davolume/255);
-//					}
-//					ptr += 4 * (1.0 / sampbias < 1.0 ? 1 : (SINT)(1.0 / sampbias + samploop2));
-//					pcm += 2 * samploopcount;
-//					samploop2 = ((SINT)((sampbias + samploop2) * 1000) % 1000) / 1000.0;
-//				} while(--r);
-//			}
-//		}
-//		if (count == 0) {
-//			break;
-//		}
-//		if (drv->dalength == 0) {
-//			drv->daflag = 0x13;
-//			return(FAILURE);
-//		}
-//		if (sxsicd_readraw(sxsi, drv->dacurpos, drv->dabuf) != SUCCESS) {
-//			drv->daflag = 0x14;
-//			return(FAILURE);
-//		}
-//		drv->dalength--;
-//		drv->dacurpos++;
-//		drv->dabufrem = sizeof(drv->dabuf) / 4;
-//	}
-//	return(SUCCESS);
-//}
 
 static void SOUNDCALL playaudio(void *hdl, SINT32 *pcm, UINT count) {
 
@@ -1773,50 +1764,21 @@ static void devinit(IDEDRV drv, REG8 sxsidrv) {
 		drv->error = IDEERR_TR0;
 		drv->device = IDETYPE_NONE;
 	}
+//#if defined(SUPPORT_IDEIO_48BIT)
+//	if(sxsi->totals > 0xfffffff){
+//		drv->dr |= IDEDEV_LBA;
+//	}
+//#endif
 	//memset(ideio_mediastatusnotification, 0, sizeof(ideio_mediastatusnotification));
 	//memset(ideio_mediachangeflag, 0, sizeof(ideio_mediachangeflag));
 }
 
 void ideio_initialize(void) {
-#if defined(_WINDOWS) && !defined(__LIBRETRO__)
-	UINT32 dwID = 0;
-	//if(!pic_cs_initialized){
-	//	memset(&pic_cs, 0, sizeof(pic_cs));
-	//	InitializeCriticalSection(&pic_cs);
-	//	pic_cs_initialized = 1;
-	//}
-	if(!ideio_thread_initialized){
-		ideio_thread_initialized = 1;
-		ideio_threadR = (HANDLE)_beginthreadex(NULL, 0, ideio_threadfuncR, NULL, CREATE_SUSPENDED, &dwID);
-		ideio_threadW = (HANDLE)_beginthreadex(NULL, 0, ideio_threadfuncW, NULL, CREATE_SUSPENDED, &dwID);
-	}
-#else
-	// TODO: 非Windows用コードを書く
-#endif
 	atapi_initialize();
 }
 
 void ideio_deinitialize(void) {
 	atapi_deinitialize();
-#if defined(_WINDOWS) && !defined(__LIBRETRO__)
-	if(ideio_thread_initialized){
-		ideio_thread_initialized = 0;
-		while(((int)ResumeThread(ideio_threadR))>0);
-		while(((int)ResumeThread(ideio_threadW))>0);
-		if(WaitForSingleObject(ideio_threadR, 5000) == WAIT_TIMEOUT){
-			TerminateThread(ideio_threadR, 0);
-		}
-		if(WaitForSingleObject(ideio_threadW, 1000) == WAIT_TIMEOUT){
-			TerminateThread(ideio_threadW, 0);
-		}
-		CloseHandle(ideio_threadR);
-		CloseHandle(ideio_threadW);
-		ideio_threadR = NULL;
-		ideio_threadW = NULL;
-	}
-#else
-	// TODO: 非Windows用コードを書く
-#endif
 }
 
 void ideio_basereset() {
@@ -1827,6 +1789,19 @@ void ideio_basereset() {
 		drv = ideio.dev[i >> 1].drv + (i & 1);
 		devinit(drv, i);
 	}
+
+	if (pccore.hddif & PCHDD_IDE) {
+		int compmode = (sxsi_getdevtype(0)!=SXSIDEV_CDROM && sxsi_getdevtype(1)!=SXSIDEV_CDROM && sxsi_getdevtype(2)==SXSIDEV_CDROM && sxsi_getdevtype(3)!=SXSIDEV_CDROM); // 旧機種互換モード？
+
+		// WinNT4.0でHDDが認識するようになる。Win9xもBIOS I/Oエミュレーションで対応。
+		if(compmode){
+			mem[0x05ba] = (sxsi_getdevtype(3)==SXSIDEV_HDD ? 0x8 : 0x0)|(sxsi_getdevtype(2)==SXSIDEV_HDD ? 0x4 : 0x0)|
+							(sxsi_getdevtype(1)==SXSIDEV_HDD ? 0x2 : 0x0)|(sxsi_getdevtype(0)==SXSIDEV_HDD ? 0x1 : 0x0);
+		}else{
+			mem[0x05ba] = (sxsi_getdevtype(3)!=SXSIDEV_NC ? 0x8 : 0x0)|(sxsi_getdevtype(2)!=SXSIDEV_NC ? 0x4 : 0x0)|
+							(sxsi_getdevtype(1)!=SXSIDEV_NC ? 0x2 : 0x0)|(sxsi_getdevtype(0)!=SXSIDEV_NC ? 0x1 : 0x0);
+		}
+	}
 }
 void ideio_reset(const NP2CFG *pConfig) {
 	REG8	i;
@@ -1835,6 +1810,7 @@ void ideio_reset(const NP2CFG *pConfig) {
 	FILEH	fh;
 	OEMCHAR tmpbiosname[16];
 	UINT8 useidebios;
+	UINT32 biosaddr;
 
 	ZeroMemory(&ideio, sizeof(ideio));
 
@@ -1844,91 +1820,63 @@ void ideio_reset(const NP2CFG *pConfig) {
 	ideio.wwait = np2cfg.idewwait;
 	ideio.bios = IDETC_NOBIOS;
 
-	useidebios = np2cfg.idebios && np2cfg.usebios;
-	if(useidebios && np2cfg.autoidebios){
-		SXSIDEV	sxsi;
-		for (i=0; i<4; i++) {
-			sxsi = sxsi_getptr(i);
-			if ((sxsi != NULL) && (np2cfg.idetype[i] == SXSIDEV_HDD) && 
-					(sxsi->devtype == SXSIDEV_HDD) && (sxsi->flag & SXSIFLAG_READY)) {
-				if(sxsi->surfaces != 8 || sxsi->sectors != 17){
-					TRACEOUT(("Incompatible CHS parameter detected. IDE BIOS automatically disabled."));
-					useidebios = 0;
+	if(pccore.hddif & PCHDD_IDE){
+		if(pConfig->idebaddr){
+			biosaddr = (UINT32)pConfig->idebaddr << 12;
+			useidebios = np2cfg.idebios && np2cfg.usebios;
+			if(useidebios && np2cfg.autoidebios){
+				SXSIDEV	sxsi;
+				for (i=0; i<4; i++) {
+					sxsi = sxsi_getptr(i);
+					if ((sxsi != NULL) && (np2cfg.idetype[i] == SXSIDEV_HDD) && 
+							(sxsi->devtype == SXSIDEV_HDD) && (sxsi->flag & SXSIFLAG_READY)) {
+						if(sxsi->surfaces != 8 || sxsi->sectors != 17){
+							TRACEOUT(("Incompatible CHS parameter detected. IDE BIOS automatically disabled."));
+							useidebios = 0;
+						}
+					}
 				}
+			}
+			if(useidebios){
+				_tcscpy(tmpbiosname, OEMTEXT("ide.rom"));
+				getbiospath(path, tmpbiosname, NELEMENTS(path));
+				fh = file_open_rb(path);
+				if (fh == FILEH_INVALID) {
+					_tcscpy(tmpbiosname, OEMTEXT("d8000.rom"));
+					getbiospath(path, tmpbiosname, NELEMENTS(path));
+					fh = file_open_rb(path);
+				}
+				if (fh == FILEH_INVALID) {
+					_tcscpy(tmpbiosname, OEMTEXT("bank3.bin"));
+					getbiospath(path, tmpbiosname, NELEMENTS(path));
+					fh = file_open_rb(path);
+				}
+				if (fh == FILEH_INVALID) {
+					_tcscpy(tmpbiosname, OEMTEXT("bios9821.rom"));
+					getbiospath(path, tmpbiosname, NELEMENTS(path));
+					fh = file_open_rb(path);
+				}
+			}else{
+				fh = FILEH_INVALID;
+			}
+			if (fh != FILEH_INVALID) {
+				// IDE BIOS
+				if (file_read(fh, mem + biosaddr, 0x2000) == 0x2000) {
+					ideio.bios = IDETC_BIOS;
+					TRACEOUT(("load ide.rom"));
+					_tcscpy(ideio.biosname, tmpbiosname);
+					CPU_RAM_D000 &= ~(0x3 << 8);
+				}else{
+					//CopyMemory(mem + biosaddr, idebios, sizeof(idebios));
+					TRACEOUT(("use simulate ide.rom"));
+				}
+				file_close(fh);
+			}else{
+				//CopyMemory(mem + biosaddr, idebios, sizeof(idebios));
+				TRACEOUT(("use simulate ide.rom"));
 			}
 		}
 	}
-	if(useidebios){
-		_tcscpy(tmpbiosname, OEMTEXT("ide.rom"));
-		getbiospath(path, tmpbiosname, NELEMENTS(path));
-		fh = file_open_rb(path);
-		if (fh == FILEH_INVALID) {
-			_tcscpy(tmpbiosname, OEMTEXT("d8000.rom"));
-			getbiospath(path, tmpbiosname, NELEMENTS(path));
-			fh = file_open_rb(path);
-		}
-		if (fh == FILEH_INVALID) {
-			_tcscpy(tmpbiosname, OEMTEXT("bank3.bin"));
-			getbiospath(path, tmpbiosname, NELEMENTS(path));
-			fh = file_open_rb(path);
-		}
-		if (fh == FILEH_INVALID) {
-			_tcscpy(tmpbiosname, OEMTEXT("bios9821.rom"));
-			getbiospath(path, tmpbiosname, NELEMENTS(path));
-			fh = file_open_rb(path);
-		}
-	}else{
-		fh = FILEH_INVALID;
-	}
-	if (fh != FILEH_INVALID) {
-		// IDE BIOS
-		if (file_read(fh, mem + 0x0d8000, 0x2000) == 0x2000) {
-			ideio.bios = IDETC_BIOS;
-			TRACEOUT(("load ide.rom"));
-			_tcscpy(ideio.biosname, tmpbiosname);
-		}else{
-			CopyMemory(mem + 0xd8000, idebios, sizeof(idebios));
-			TRACEOUT(("use simulate ide.rom"));
-		}
-		file_close(fh);
-	}else{
-		CopyMemory(mem + 0xd8000, idebios, sizeof(idebios));
-		TRACEOUT(("use simulate ide.rom"));
-	}
-	CPU_RAM_D000 &= ~(0x3 << 8);
-
-	//if(ideio.bios==IDETC_NOBIOS){
-	//	UINT16 param_2[] = {0x0598, 0x05b1, 0x058c, 0x058e};
-	//	UINT16 param_4[] = {0x045d, 0x045d, 0x045e, 0x045e};
-	//	UINT8 param_19[] = {0x08, 0x10, 0x20, 0x40};
-	//	int paramofs = 0;
-	//	for (i=0; i<4; i++) {
-	//		drv = ideio.dev[i >> 1].drv + (i & 1);
-	//		if (drv != NULL) {
-	//			SXSIDEV sxsi;
-	//			UINT32	size;
-	//			sxsi = sxsi_getptr(drv->sxsidrv);
-	//			size = sxsi->cylinders * sxsi->surfaces * sxsi->sectors;
-	//			if (drv->device == IDETYPE_HDD) {
-	//				STOREINTELWORD(mem + 0xda100 + paramofs, (size / drv->surfaces / drv->sectors) & 0xffff);
-	//				STOREINTELWORD(mem + 0xda100 + paramofs + 2, param_2[i]);
-	//				STOREINTELWORD(mem + 0xda100 + paramofs + 4, param_4[i]);
-	//				*(mem + 0xda100 + paramofs + 7) = drv->sectors;
-	//				STOREINTELWORD(mem + 0xda100 + paramofs + 8, (drv->surfaces * drv->sectors) & 0xffff);
-	//				*(mem + 0xda100 + paramofs + 10) = drv->surfaces;
-	//				STOREINTELWORD(mem + 0xda100 + paramofs + 1, (drv->surfaces * drv->sectors) & 0xffff);
-	//				*(mem + 0xda100 + paramofs + 16) = 0;
-	//				*(mem + 0xda100 + paramofs + 19) = param_19[i];
-	//			}else{
-	//				STOREINTELWORD(mem + 0xda100 + paramofs + 2, param_2[i]);
-	//				STOREINTELWORD(mem + 0xda100 + paramofs + 4, param_4[i]);
-	//				*(mem + 0xda100 + paramofs + 16) = 0x02;
-	//				*(mem + 0xda100 + paramofs + 19) = param_19[i];
-	//			}
-	//		}
-	//		paramofs += 32;
-	//	}
-	//}
 
 	(void)pConfig;
 }
@@ -2040,7 +1988,10 @@ void ideio_mediachange(REG8 sxsidrv) {
 	//drv->status |= IDESTAT_ERR;
 	//drv->error |= IDEERR_MCNG;
 	//setintr(drv);
-	////ideio_mediachangeflag[sxsidrv] = 1;
+	//drv->error &= ~IDEERR_MCNG; // 一旦フラグクリア
+	//drv->media |= IDEIO_MEDIA_CHANGED;
+	//setintr(drv);
+	//ideio_mediachangeflag[sxsidrv] = 1;
 }
 
 #endif	/* SUPPORT_IDEIO */

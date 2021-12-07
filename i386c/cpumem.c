@@ -1,34 +1,59 @@
-#include	"compiler.h"
+#include	<compiler.h>
 
 #if 1
 #undef	TRACEOUT
+//#define USE_TRACEOUT_VS
+//#define MEM_BDA_TRACEOUT
+//#define MEM_D8_TRACEOUT
+#ifdef USE_TRACEOUT_VS
+static void trace_fmt_ex(const char *fmt, ...)
+{
+	char stmp[2048];
+	va_list ap;
+	va_start(ap, fmt);
+	vsprintf(stmp, fmt, ap);
+	strcat(stmp, "\n");
+	va_end(ap);
+	OutputDebugStringA(stmp);
+}
+#define	TRACEOUT(s)	trace_fmt_ex s
+#else
 #define	TRACEOUT(s)	(void)(s)
+#endif
 #endif	/* 1 */
 
 #ifndef NP2_MEMORY_ASM
 
-#include	"cpucore.h"
-#include	"pccore.h"
-#include	"iocore.h"
-#include	"memtram.h"
-#include	"memvram.h"
-#include	"memegc.h"
+#include	<cpucore.h>
+#include	<pccore.h>
+#include	<io/iocore.h>
+#include	<mem/memtram.h>
+#include	<mem/memvram.h>
+#include	<mem/memegc.h>
 #if defined(SUPPORT_PC9821)
-#include	"memvga.h"
+#include	<mem/memvga.h>
 #endif
-#include	"memems.h"
-#include	"memepp.h"
-#include	"vram.h"
-#include	"font/font.h"
+#include	<mem/memems.h>
+#include	<mem/memepp.h>
+#include	<vram/vram.h>
+#include	<font/font.h>
 #if defined(SUPPORT_CL_GD5430)
-#include	"wab/cirrus_vga_extern.h"
+#include	<wab/cirrus_vga_extern.h>
 #endif
 #if defined(SUPPORT_PCI)
-#include	"bios/bios.h"
+#include	<bios/bios.h>
+#endif
+#if defined(SUPPORT_IA32_HAXM)
+#include	<i386hax/haxfunc.h>
+#include	<i386hax/haxcore.h>
 #endif
 
 
+#if defined(SUPPORT_IA32_HAXM)
+	UINT8	*mem = NULL; // Alloc in pccore_mem_malloc()
+#else
 	UINT8	mem[0x200000];
+#endif
 
 
 typedef void (MEMCALL * MEM8WRITE)(UINT32 address, REG8 value);
@@ -300,6 +325,23 @@ const VACCTBL	*vacc;
 	if (!(func & 0x20)) {
 #endif	// defined(SUPPORT_PC9821)
 		vacc = vacctbl + (func & 0x0f);
+#if defined(SUPPORT_IA32_HAXM)
+		if (np2hax.enable) {
+			if ((func & 0x0f) < 8) {
+				if(np2haxcore.lastVRAMMMIO){
+					i386hax_vm_setmemoryarea(mem+0xA8000, 0xA8000, 0x8000);
+					i386hax_vm_setmemoryarea(mem+0xB0000, 0xB0000, 0x10000);
+					np2haxcore.lastVRAMMMIO = 0;
+				}
+			}else{
+				if(!np2haxcore.lastVRAMMMIO){
+					i386hax_vm_removememoryarea(mem+0xA8000, 0xA8000, 0x8000);
+					i386hax_vm_removememoryarea(mem+0xB0000, 0xB0000, 0x10000);
+					np2haxcore.lastVRAMMMIO = 1;
+				}
+			}
+		}
+#endif
 
 		memfn0.rd8[0xa8000 >> 15] = vacc->rd8;
 		memfn0.rd8[0xb0000 >> 15] = vacc->rd8;
@@ -342,6 +384,16 @@ const VACCTBL	*vacc;
 #if defined(SUPPORT_PC9821)
 	}
 	else {
+#if defined(SUPPORT_IA32_HAXM)
+		if (np2hax.enable) {
+			if(!np2haxcore.lastVRAMMMIO){
+				i386hax_vm_removememoryarea(mem+0xA8000, 0xA8000, 0x8000);
+				i386hax_vm_removememoryarea(mem+0xB0000, 0xB0000, 0x10000);
+				np2haxcore.lastVRAMMMIO = 1;
+			}
+		}
+#endif
+
 		memfn0.rd8[0xa8000 >> 15] = memvga0_rd8;
 		memfn0.rd8[0xb0000 >> 15] = memvga1_rd8;
 		memfn0.rd8[0xb8000 >> 15] = memnc_rd8;
@@ -461,6 +513,22 @@ static const MEMFNF memfnf = {
 // ----
 REG8 MEMCALL memp_read8(UINT32 address) {
 	
+#ifdef MEM_BDA_TRACEOUT
+	if(0x400 <= address && address < 0x600){
+		switch(address){
+		case 0x55f:
+		case 0x58a:
+			break;
+		default:
+			TRACEOUT(("BDA (read8): %x ret %x", address, mem[address]));
+		}
+	}
+#endif
+#ifdef MEM_D8_TRACEOUT
+	if(0xD8000 <= address && address < 0xDC000){
+		TRACEOUT(("D8000h (read8): %x ret %x", address, mem[address]));
+	}
+#endif
 	//if (0xD4000 <= address && address <= 0xD5FFF) {
 	//	printf("GP-IB BIOS memread");
 	//}
@@ -559,14 +627,22 @@ REG16 MEMCALL memp_read16(UINT32 address) {
 
 	REG16	ret;
 	
-	//if(0x400 <= address && address < 0x600){
-	//	switch(address){
-	//	case 0x58a:
-	//		break;
-	//	default:
-	//		TRACEOUT(("BDA (read16): %x ret %x", address, mem[address]));
-	//	}
-	//}
+#ifdef MEM_BDA_TRACEOUT
+	if(0x400 <= address && address < 0x600){
+		switch(address){
+		case 0x55f:
+		case 0x58a:
+			break;
+		default:
+			TRACEOUT(("BDA (read16): %x ret %x", address, *((UINT16*)(mem+address))));
+		}
+	}
+#endif
+#ifdef MEM_D8_TRACEOUT
+	if(0xD8000 <= address && address < 0xDC000){
+		TRACEOUT(("D8000h (read16): %x ret %x", address, *((UINT16*)(mem+address))));
+	}
+#endif
 	//if (address == 0xf0000) {
 	//	printf("SYS (read16): %x ret %x", address, *((UINT16*)(mem+address)));
 	//}
@@ -670,14 +746,22 @@ UINT32 MEMCALL memp_read32(UINT32 address) {
 	//UINT32	pos;
 	UINT32	ret;
 	
-	//if(0x400 <= address && address < 0x600){
-	//	switch(address){
-	//	case 0x58a:
-	//		break;
-	//	default:
-	//		TRACEOUT(("BDA (read32): %x ret %x", address, mem[address]));
-	//	}
-	//}
+#ifdef MEM_BDA_TRACEOUT
+	if(0x400 <= address && address < 0x600){
+		switch(address){
+		case 0x55f:
+		case 0x58a:
+			break;
+		default:
+			TRACEOUT(("BDA (read32): %x ret %x", address, *((UINT32*)(mem+address))));
+		}
+	}
+#endif
+#ifdef MEM_D8_TRACEOUT
+	if(0xD8000 <= address && address < 0xDC000){
+		TRACEOUT(("D8000h (read32): %x ret %x", address, *((UINT32*)(mem+address))));
+	}
+#endif
 	//if (0x400 <= address && address <= 0x5ff) {
 	//	printf("BDA (read32): %x ret %x", address, *((UINT32*)(mem+address)));
 	//}
@@ -938,14 +1022,30 @@ UINT32 MEMCALL memp_read32_paging(UINT32 address) {
 //#define TEST_END_ADDR	0xffffff
 void MEMCALL memp_write8(UINT32 address, REG8 value) {
 	
-	//if(0x400 <= address && address < 0x600){
-	//	switch(address){
-	//	case 0x58a:
-	//		break;
-	//	default:
-	//		TRACEOUT(("BDA (write8): %x ret %x", address, mem[address]));
-	//	}
-	//}
+#ifdef MEM_BDA_TRACEOUT
+	if(0x400 <= address && address < 0x600){
+		switch(address){
+		case 0x55e:
+		case 0x564:
+		case 0x565:
+		case 0x566:
+		case 0x567:
+		case 0x568:
+		case 0x569:
+		case 0x56a:
+		case 0x58a:
+			break;
+		case 0x4f8:
+		case 0x4f9:
+		case 0x4fa:
+		case 0x4fb:
+		case 0x4fc:
+			break;
+		default:
+			TRACEOUT(("BDA (write8): %x val %x -> %x", address, mem[address], value));
+		}
+	}
+#endif
 	if (address==0x0457) return; // XXX: IDEのデータ破壊回避のための暫定
 	if (address < I286_MEMWRITEMAX) {
 		mem[address] = (UINT8)value;
@@ -972,6 +1072,16 @@ void MEMCALL memp_write8(UINT32 address, REG8 value) {
 			//if(TEST_START_ADDR < address && address <= TEST_END_ADDR){
 			//	printf("%d: %d\n", address, value);
 			//}
+#if defined(SUPPORT_VGA_MODEX)
+			// PC/AT互換機 標準VGA相当 書き込み限定で許可
+			if(np2clvga.modex && vramWndAddr3==0xa0000){
+				UINT32 addr3 = address;
+				if(vramWndAddr3 <= addr3 && addr3 < vramWndAddr3 + VRA3WINDOW_SIZEX){
+					cirrus_vga_mem_writeb(cirrusvga_opaque, addr3, value);
+					vramWndAddr3 = 0;
+				}
+			}
+#endif
 			if(np2clvga.gd54xxtype!=CIRRUS_98ID_PCI){
 				if(vramWndAddr){
 					if(vramWndAddr <= address){
@@ -990,7 +1100,7 @@ void MEMCALL memp_write8(UINT32 address, REG8 value) {
 					UINT32 addr3 = address;
 					if(vramWndAddr3 <= addr3 && addr3 < vramWndAddr3 + VRA3WINDOW_SIZEX){
 						CIRRUS_VRAMWND3_FUNC_wb(cirrusvga_opaque, addr3, value);
-						TRACEOUT(("mem (write8): %x", address));
+						//TRACEOUT(("mem (write8): %x", address));
 						//if(!(gdc.analog & ((1 << GDCANALOG_256) | (1 << GDCANALOG_256E))))
 						//	return;
 					}
@@ -1051,14 +1161,24 @@ void MEMCALL memp_write8(UINT32 address, REG8 value) {
 void MEMCALL memp_write16(UINT32 address, REG16 value) {
 
 	
-	//if(0x400 <= address && address < 0x600){
-	//	switch(address){
-	//	case 0x58a:
-	//		break;
-	//	default:
-	//		TRACEOUT(("BDA (write16): %x ret %x", address, mem[address]));
-	//	}
-	//}
+#ifdef MEM_BDA_TRACEOUT
+	if(0x400 <= address && address < 0x600){
+		switch(address){
+		case 0x55e:
+		case 0x58a:
+			break;
+		case 0x4f8:
+		case 0x4f9:
+		case 0x4fa:
+		case 0x4fb:
+		case 0x4fc:
+		case 0x4fd:
+			break;
+		default:
+			TRACEOUT(("BDA (write16): %x val %x -> %x", address, *((UINT16*)(mem+address)), value));
+		}
+	}
+#endif
 	if (address < (I286_MEMWRITEMAX - 1)) {
 		STOREINTELWORD(mem + address, value);
 	}
@@ -1085,6 +1205,16 @@ void MEMCALL memp_write16(UINT32 address, REG16 value) {
 				//if(TEST_START_ADDR < address && address <= TEST_END_ADDR){
 				//	printf("%d: %d\n", address, value);
 				//}
+#if defined(SUPPORT_VGA_MODEX)
+				// PC/AT互換機 標準VGA相当 書き込み限定で許可
+				if(np2clvga.modex && vramWndAddr3==0xa0000){
+					UINT32 addr3 = address;
+					if(vramWndAddr3 <= addr3 && addr3 < vramWndAddr3 + VRA3WINDOW_SIZEX){
+						cirrus_vga_mem_writew(cirrusvga_opaque, addr3, value);
+						vramWndAddr3 = 0;
+					}
+				}
+#endif
 				if(np2clvga.gd54xxtype!=CIRRUS_98ID_PCI){
 					if(vramWndAddr){
 						if(vramWndAddr <= address){
@@ -1103,7 +1233,7 @@ void MEMCALL memp_write16(UINT32 address, REG16 value) {
 						UINT32 addr3 = address;
 						if(vramWndAddr3 <= addr3 && addr3 < vramWndAddr3 + VRA3WINDOW_SIZEX){
 							CIRRUS_VRAMWND3_FUNC_ww(cirrusvga_opaque, addr3, value);
-							TRACEOUT(("mem (write16): %x", address));
+							//TRACEOUT(("mem (write16): %x", address));
 							//if(!(gdc.analog & ((1 << GDCANALOG_256) | (1 << GDCANALOG_256E))))
 							//	return;
 						}
@@ -1186,14 +1316,24 @@ void MEMCALL memp_write32(UINT32 address, UINT32 value) {
 
 	//UINT32	pos;
 	
-	//if(0x400 <= address && address < 0x600){
-	//	switch(address){
-	//	case 0x58a:
-	//		break;
-	//	default:
-	//		TRACEOUT(("BDA (write32): %x ret %x", address, mem[address]));
-	//	}
-	//}
+#ifdef MEM_BDA_TRACEOUT
+	if(0x400 <= address && address < 0x600){
+		switch(address){
+		case 0x55e:
+		case 0x58a:
+			break;
+		case 0x4f8:
+		case 0x4f9:
+		case 0x4fa:
+		case 0x4fb:
+		case 0x4fc:
+		case 0x4fd:
+			break;
+		default:
+			TRACEOUT(("BDA (write32): %x val %x -> %x", address, *((UINT32*)(mem+address)), value));
+		}
+	}
+#endif
 	if (address < (I286_MEMWRITEMAX - 3)) {
 		STOREINTELDWORD(mem + address, value);
 		return;
@@ -1221,6 +1361,16 @@ void MEMCALL memp_write32(UINT32 address, UINT32 value) {
 				//if(TEST_START_ADDR < address && address <= TEST_END_ADDR){
 				//	printf("%d: %d\n", address, value);
 				//}
+#if defined(SUPPORT_VGA_MODEX)
+				// PC/AT互換機 標準VGA相当 書き込み限定で許可
+				if(np2clvga.modex && vramWndAddr3==0xa0000){
+					UINT32 addr3 = address;
+					if(vramWndAddr3 <= addr3 && addr3 < vramWndAddr3 + VRA3WINDOW_SIZEX){
+						cirrus_vga_mem_writel(cirrusvga_opaque, addr3, value);
+						vramWndAddr3 = 0;
+					}
+				}
+#endif
 				if(np2clvga.gd54xxtype!=CIRRUS_98ID_PCI){
 					if(vramWndAddr){
 						if(vramWndAddr <= address){
@@ -1239,7 +1389,7 @@ void MEMCALL memp_write32(UINT32 address, UINT32 value) {
 						UINT32 addr3 = address;
 						if(vramWndAddr3 <= addr3 && addr3 < vramWndAddr3 + VRA3WINDOW_SIZEX){
 							CIRRUS_VRAMWND3_FUNC_wl(cirrusvga_opaque, addr3, value);
-							TRACEOUT(("mem (write32): %x", address));
+							//TRACEOUT(("mem (write32): %x", address));
 							//if(!(gdc.analog & ((1 << GDCANALOG_256) | (1 << GDCANALOG_256E))))
 							//	return;
 						}
@@ -1304,7 +1454,7 @@ void MEMCALL memp_write32(UINT32 address, UINT32 value) {
 
 void MEMCALL memp_write8_paging(UINT32 address, REG8 value) {
 	
-	if (address==0x0457) return; // XXX: IDEのデータ破壊回避のための暫定
+	//if (address==0x0457) return; // XXX: IDEのデータ破壊回避のための暫定
 	if (address < I286_MEMWRITEMAX) {
 		mem[address] = (UINT8)value;
 	}
@@ -1530,7 +1680,7 @@ void MEMCALL meml_reads(UINT32 address, void *dat, UINT leng) {
 	else {
 		while(leng) {
 			size = 0x1000 - (address & 0xfff);
-			size = np2min(size, leng);
+			size = MIN(size, leng);
 			memp_reads(physicaladdr(address, FALSE), dat, size);
 			address += size;
 			dat = ((UINT8 *)dat) + size;
@@ -1549,7 +1699,7 @@ void MEMCALL meml_writes(UINT32 address, const void *dat, UINT leng) {
 	else {
 		while(leng) {
 			size = 0x1000 - (address & 0xfff);
-			size = np2min(size, leng);
+			size = MIN(size, leng);
 			memp_writes(physicaladdr(address, TRUE), dat, size);
 			address += size;
 			dat = ((UINT8 *)dat) + size;
@@ -1622,10 +1772,10 @@ void MEMCALL memr_reads(UINT seg, UINT off, void *dat, UINT leng) {
 		off = LOW16(off);
 		addr = (seg << 4) + off;
 		rem = 0x10000 - off;
-		size = np2min(leng, rem);
+		size = MIN(leng, rem);
 		if (CPU_STAT_PAGING) {
 			rem = 0x1000 - (addr & 0xfff);
-			size = np2min(size, rem);
+			size = MIN(size, rem);
 			addr = physicaladdr(addr, FALSE);
 		}
 		memp_reads(addr, dat, size);
@@ -1645,10 +1795,10 @@ void MEMCALL memr_writes(UINT seg, UINT off, const void *dat, UINT leng) {
 		off = LOW16(off);
 		addr = (seg << 4) + off;
 		rem = 0x10000 - off;
-		size = np2min(leng, rem);
+		size = MIN(leng, rem);
 		if (CPU_STAT_PAGING) {
 			rem = 0x1000 - (addr & 0xfff);
-			size = np2min(size, rem);
+			size = MIN(size, rem);
 			addr = physicaladdr(addr, TRUE);
 		}
 		memp_writes(addr, dat, size);

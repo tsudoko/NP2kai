@@ -1,10 +1,11 @@
-#include	"compiler.h"
-#include	"fontmng.h"
-#include	"inputmng.h"
-#include	"vramhdl.h"
-#include	"vrammix.h"
+#include	<compiler.h>
+#include	<fontmng.h>
+#include	<inputmng.h>
+#include	<embed/vramhdl.h>
+#include	<embed/vrammix.h>
 #include	"menudeco.inc"
-#include	"menubase.h"
+#include	<embed/menubase/menubase.h>
+#include	<sysmenu.res>
 
 
 typedef struct _mhdl {
@@ -351,7 +352,7 @@ static BRESULT wndopenbase(MENUSYS *sys) {
 		goto wopn0_err;
 	}
 	if (sys->style & MENUSTYLE_BOTTOM) {
-		vram->posy = np2max(0, menuvram->height - height);
+		vram->posy = MAX(0, menuvram->height - height);
 	}
 	menuvram_caption(vram, &mrect, sys->icon, sys->title);
 	menubase_setrect(vram, NULL);
@@ -502,7 +503,7 @@ static BRESULT childopn(MENUSYS *sys, int depth, int pos) {
 	wnd = sys->wnd + depth;
 	if ((menu->flag & MENUS_CTRLMASK) == MENUS_POPUP) {
 		parent.left = sys->popupx;
-		parent.top = np2max(sys->popupy, wnd->vram->height);
+		parent.top = MAX(sys->popupy, wnd->vram->height);
 		parent.right = parent.left;
 		parent.bottom = parent.top;
 		dir = 0;
@@ -586,8 +587,8 @@ static BRESULT childopn(MENUSYS *sys, int depth, int pos) {
 			parent.top = parent.bottom - height;
 		}
 	}
-	wnd->vram->posx = np2min(parent.left, menubase.width - width);
-	wnd->vram->posy = np2min(parent.top, menubase.height - height);
+	wnd->vram->posx = MIN(parent.left, menubase.width - width);
+	wnd->vram->posy = MIN(parent.top, menubase.height - height);
 	wnd->items = items;
 	wnd->focus = -1;
 	sys->depth++;
@@ -835,7 +836,7 @@ void menusys_moving(int x, int y, int btn) {
 				}
 			}
 			else if (btn == 2) {
-				if ((cur.menu->id) && (!(cur.menu->flag & MENU_NOSEND))) {
+				if ((cur.menu->id) && (!(cur.menu->flag & MENU_NOSEND)) && (cur.menu->id != MID_DBSS)) {
 					menubase_close();
 					sys->cmd(cur.menu->id);
 					return;

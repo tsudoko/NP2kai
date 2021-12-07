@@ -23,8 +23,8 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "compiler.h"
-#include "ia32/cpu.h"
+#include <compiler.h>
+#include <ia32/cpu.h>
 #include "ia32/ia32.mcr"
 
 #include "string_inst.h"
@@ -33,6 +33,7 @@
 #include "misc_inst.h"
 #endif
 
+extern int cpu_debug_rep_cont;
 
 /* movs */
 void
@@ -1053,7 +1054,7 @@ STOSD_YdEAX(void)
 	}
 }
 
-// rep\82̂\DD
+// repのみ
 void
 STOSB_YbAL_rep(int reptype)
 {

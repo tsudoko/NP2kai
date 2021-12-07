@@ -5,14 +5,14 @@
 
 #pragma once
 
-#include "pccore.h"
+#include <pccore.h>
 
 #ifdef __cplusplus
 extern "C"
 {
 #endif
 
-void boardspb_reset(const NP2CFG *pConfig);
+void boardspb_reset(const NP2CFG *pConfig, int opnaidx);
 void boardspb_bind(void);
 void boardspb_unbind(void);
 

@@ -165,6 +165,17 @@ typedef struct {
 	UINT8	kanaref;
 } KEYCTRL;
 
+typedef struct {
+	UINT8	ref[0x80];
+	UINT8	extkey;
+	UINT8	mouselast;
+	UINT8	padding;
+	UINT8	d_up;
+	UINT8	d_dn;
+	UINT8	d_lt;
+	UINT8	d_rt;
+} KEYSTAT;
+
 
 #ifdef __cplusplus
 extern "C" {
@@ -172,6 +183,7 @@ extern "C" {
 
 extern	NKEYTBL		nkeytbl;
 extern	KEYCTRL		keyctrl;
+extern	KEYSTAT		keystat;
 
 
 void keystat_initialize(void);
@@ -199,7 +211,9 @@ void keystat_resendstat(void);
 REG8 keystat_getjoy(void);
 REG8 keystat_getmouse(SINT16 *x, SINT16 *y);
 
-
+// keyrepeat
+// keyrepeat interval processing
+void keyrepeat_proc();
 
 // ---- 廃止関数
 

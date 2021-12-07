@@ -1,8 +1,8 @@
-#include	"compiler.h"
-#include	"pccore.h"
-#include	"fdd/diskdrv.h"
-#include	"fdd/fdd_mtr.h"
-#include	"timing.h"
+#include	<compiler.h>
+#include	<pccore.h>
+#include	<fdd/diskdrv.h>
+#include	<fdd/fdd_mtr.h>
+#include	<timing.h>
 
 
 #define	MSSHIFT		16
@@ -35,6 +35,10 @@ void timing_setcount(UINT value) {
 
 	timing.cnt = value;
 }
+
+#ifdef SUPPORT_WAB
+void wabrly_callback(UINT nowtime);
+#endif
 
 UINT timing_getcount(void) {
 
@@ -79,3 +83,4 @@ UINT timing_getcount_baseclock(void) {
 	}
 	return(ret);
 }
+

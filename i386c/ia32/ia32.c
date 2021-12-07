@@ -23,12 +23,17 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "compiler.h"
+#include <compiler.h>
 #include "cpu.h"
 #include "ia32.mcr"
 
+#if defined(SUPPORT_IA32_HAXM)
+#include <i386hax/haxfunc.h>
+#include <i386hax/haxcore.h>
+#endif
+
 I386CORE	i386core;
-I386CPUID	i386cpuid = {I386CPUID_VERSION, CPU_VENDOR, CPU_FAMILY, CPU_MODEL, CPU_STEPPING, CPU_FEATURES, CPU_FEATURES_EX, CPU_BRAND_STRING, CPU_BRAND_ID, CPU_FEATURES_ECX};
+I386CPUID	i386cpuid = {I386CPUID_VERSION, CPU_VENDOR, CPU_FAMILY, CPU_MODEL, CPU_STEPPING, CPU_FEATURES, CPU_FEATURES_EX, CPU_BRAND_STRING, CPU_BRAND_ID, CPU_FEATURES_ECX, CPU_EFLAGS_MASK};
 I386MSR		i386msr = {0};
 
 UINT8	*reg8_b20[0x100];
@@ -101,7 +106,15 @@ ia32_setextsize(UINT32 size)
 //			}else
 //#endif
 			{
+#if defined(SUPPORT_IA32_HAXM)
+#if defined(NP2_WIN)
+				_aligned_free(extmem);
+#else
+				free(extmem);
+#endif
+#else
 				_MFREE(extmem);
+#endif
 			}
 			extmem = NULL;
 		}
@@ -122,7 +135,15 @@ ia32_setextsize(UINT32 size)
 //			}else
 //#endif
 			{
+#if defined(SUPPORT_IA32_HAXM)
+#if defined(NP2_WIN)
+				extmem = (UINT8*)_aligned_malloc(size + 4096, 4096);
+#else
+				posix_memalign(&extmem, 4096, size + 4096);
+#endif
+#else
 				extmem = (UINT8 *)_MALLOC(size + 16, "EXTMEM");
+#endif
 			}
 		}
 		if (extmem != NULL) {
@@ -130,7 +151,7 @@ ia32_setextsize(UINT32 size)
 			CPU_EXTMEM = extmem;
 			CPU_EXTMEMSIZE = size;
 			CPU_EXTMEMBASE = CPU_EXTMEM - 0x100000;
-			CPU_EXTLIMIT16 = np2min(size + 0x100000, 0xf00000);
+			CPU_EXTLIMIT16 = MIN(size + 0x100000, 0xf00000);
 			CPU_EXTLIMIT = size + 0x100000;
 		}
 		else {
@@ -267,6 +288,7 @@ set_eflags(UINT32 new_flags, UINT32 mask)
 	mask &= I_FLAG|IOPL_FLAG|RF_FLAG|VM_FLAG|VIF_FLAG|VIP_FLAG;
 	mask |= SZAPC_FLAG|T_FLAG|D_FLAG|O_FLAG|NT_FLAG;
 	mask |= AC_FLAG|ID_FLAG;
+	mask &= ~i386cpuid.cpu_eflags_mask;
 	modify_eflags(new_flags, mask);
 }
 

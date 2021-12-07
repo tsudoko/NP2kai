@@ -1,8 +1,8 @@
-#include	"compiler.h"
-#include	"commng.h"
-#include	"cpucore.h"
-#include	"pccore.h"
-#include	"iocore.h"
+#include	<compiler.h>
+#include	<commng.h>
+#include	<cpucore.h>
+#include	<pccore.h>
+#include	<io/iocore.h>
 
 
 	COMMNG	cm_prt;
@@ -73,5 +73,11 @@ void printif_bind(void) {
 
 	iocore_attachsysoutex(0x0040, 0x0cf1, prto40, 4);
 	iocore_attachsysinpex(0x0040, 0x0cf1, prti40, 4);
+}
+
+void printif_finalize(void) {
+
+	commng_destroy(cm_prt);
+	cm_prt = NULL;
 }
 

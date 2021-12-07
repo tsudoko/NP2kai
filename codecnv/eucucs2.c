@@ -3,8 +3,12 @@
  * @brief	Implementation of converting EUC to UTF-16
  */
 
-#include "compiler.h"
-#include "codecnv.h"
+#ifdef CODECNV_TEST
+#include "compiler_base.h"
+#else
+#include <compiler.h>
+#endif
+#include <codecnv/codecnv.h>
 
 static UINT euctoucs2(UINT16 *lpOutput, UINT cchOutput, const char *lpInput, UINT cchInput);
 

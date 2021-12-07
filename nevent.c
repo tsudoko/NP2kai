@@ -3,10 +3,10 @@
  * @brief	Implementation of the event
  */
 
-#include "compiler.h"
-#include "nevent.h"
-#include "cpucore.h"
-#include "pccore.h"
+#include <compiler.h>
+#include <nevent.h>
+#include <cpucore.h>
+#include <pccore.h>
 
 	_NEVENT g_nevent;
 
@@ -117,6 +117,29 @@ void nevent_progress(void)
 //	TRACEOUT(("nextbase = %d (%d)", nextbase, CPU_REMCLOCK));
 }
 
+void nevent_changeclock(UINT32 oldclock, UINT32 newclock)
+{
+	UINT i;
+	NEVENTID id;
+	NEVENTITEM item;
+
+	newclock /= pccore.baseclock;
+	oldclock /= pccore.baseclock;
+
+	if(oldclock > 0){
+		for (i = 0; i < g_nevent.readyevents; i++)
+		{
+			id = g_nevent.level[i];
+			item = &g_nevent.item[id];
+			if(item->clock > 0){
+				item->clock = item->clock * newclock / oldclock;
+			}
+		}
+		CPU_BASECLOCK = CPU_BASECLOCK * newclock / oldclock;
+		CPU_REMCLOCK = CPU_REMCLOCK * newclock / oldclock;
+	}
+
+}
 
 void nevent_reset(NEVENTID id)
 {

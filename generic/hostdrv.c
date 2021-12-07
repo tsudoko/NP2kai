@@ -1,4 +1,4 @@
-#include	"compiler.h"
+#include	<compiler.h>
 
 #if defined(SUPPORT_HOSTDRV)
 
@@ -9,12 +9,12 @@
 	更に、手抜き版だし(マテ
 */
 
-#include	"dosio.h"
-#include	"cpucore.h"
-#include	"pccore.h"
-#include	"iocore.h"
-#include	"hostdrv.h"
-#include	"hostdrvs.h"
+#include	<dosio.h>
+#include	<cpucore.h>
+#include	<pccore.h>
+#include	<io/iocore.h>
+#include	<generic/hostdrv.h>
+#include	<generic/hostdrvs.h>
 #include	"hostdrv.tbl"
 
 
@@ -327,7 +327,7 @@ static BRESULT read_data(UINT num, UINT32 pos, UINT size, UINT seg, UINT off) {
 		return(FAILURE);
 	}
 	while(size) {
-		r = np2min(size, sizeof(work));
+		r = MIN(size, sizeof(work));
 		if (file_read(fh, work, r) != r) {
 			return(FAILURE);
 		}
@@ -358,7 +358,7 @@ static BRESULT write_data(UINT num, UINT32 pos, UINT size, UINT seg, UINT off) {
 	}
 	else {
 		do {
-			r = np2min(size, sizeof(work));
+			r = MIN(size, sizeof(work));
 			MEMR_READS(seg, off, work, r);
 			if (file_write(fh, work, r) != r) {
 				return(FAILURE);

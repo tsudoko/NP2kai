@@ -23,10 +23,10 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "compiler.h"
-#include "ia32/cpu.h"
+#include <compiler.h>
+#include <ia32/cpu.h>
 #include "ia32/ia32.mcr"
-#include "pccore.h"
+#include <pccore.h>
 
 #include "system_inst.h"
 
@@ -368,13 +368,16 @@ MOV_CdRd(void)
 #if (CPU_FEATURES & CPU_FEATURE_SSE) == CPU_FEATURE_SSE
 			    | CPU_CR4_OSXMMEXCPT
 #endif
+			    | CPU_CR4_PCE
 			;
 			if (src & ~reg) {
 				//if (src & 0xfffffc00) {
 				if (src & 0xfffff800) {
 					EXCEPTION(GP_EXCEPTION, 0);
 				}
-				ia32_warning("MOV_CdRd: CR4 <- 0x%08x", src);
+				if ((src & ~reg) != CPU_CR4_DE) { // XXX: debug extentionは警告しない
+					ia32_warning("MOV_CdRd: CR4 <- 0x%08x", src);
+				}
 			}
 
 			reg = CPU_CR4;
@@ -1135,19 +1138,38 @@ void
 RDTSC(void)
 {
 #if defined(USE_TSC)
-#if defined(NP2_X11) || defined(NP2_SDL2) || defined(__LIBRETRO__)
-//	ia32_panic("RDTSC: not implemented yet!");
-	UINT64 tsc_tmp;
-	if(CPU_REMCLOCK != -1){
-		tsc_tmp = CPU_MSR_TSC - CPU_REMCLOCK;
+#if defined(NP2_X) || defined(NP2_SDL) || defined(__LIBRETRO__)
+#if defined(SUPPORT_ASYNC_CPU)
+	if(np2cfg.consttsc){
+		// CPUクロックに依存しないカウンタ値にする
+		UINT64 tsc_tmp;
+		if(CPU_REMCLOCK != -1){
+			tsc_tmp = CPU_MSR_TSC - CPU_REMCLOCK * pccore.maxmultiple / pccore.multiple;
+		}else{
+			tsc_tmp = CPU_MSR_TSC;
+		}
+		CPU_EDX = ((tsc_tmp >> 32) & 0xffffffff);
+		CPU_EAX = (tsc_tmp & 0xffffffff);
 	}else{
-		tsc_tmp = CPU_MSR_TSC;
+#endif
+		// CPUクロックに依存するカウンタ値にする
+		static UINT64 tsc_last = 0;
+		static UINT64 tsc_cur = 0;
+		UINT64 tsc_tmp;
+		if(CPU_REMCLOCK != -1){
+			tsc_tmp = CPU_MSR_TSC - CPU_REMCLOCK * pccore.maxmultiple / pccore.multiple;
+		}else{
+			tsc_tmp = CPU_MSR_TSC;
+		}
+		tsc_cur += (tsc_tmp - tsc_last) * pccore.multiple / pccore.maxmultiple;
+		tsc_last = tsc_tmp;
+		CPU_EDX = ((tsc_cur >> 32) & 0xffffffff);
+		CPU_EAX = (tsc_cur & 0xffffffff);
+#if defined(SUPPORT_ASYNC_CPU)
 	}
-	//tsc_tmp /= 1000;
-	tsc_tmp = (tsc_tmp >> 10); // XXX: ????
-	CPU_EDX = ((tsc_tmp >> 32) & 0xffffffff);
-	CPU_EAX = (tsc_tmp & 0xffffffff);
+#endif
 #else
+#if defined(SUPPORT_IA32_HAXM)
 	LARGE_INTEGER li = {0};
 	LARGE_INTEGER qpf;
 	QueryPerformanceCounter(&li);
@@ -1157,17 +1179,37 @@ RDTSC(void)
 	CPU_EDX = li.HighPart;
 	CPU_EAX = li.LowPart;
 #endif
+#endif
 #else
-	UINT64 tsc_tmp;
-	if(CPU_REMCLOCK != -1){
-		tsc_tmp = CPU_MSR_TSC - CPU_REMCLOCK;
+#if defined(SUPPORT_ASYNC_CPU)
+	if(np2cfg.consttsc){
+		// CPUクロックに依存しないカウンタ値にする
+		UINT64 tsc_tmp;
+		if(CPU_REMCLOCK != -1){
+			tsc_tmp = CPU_MSR_TSC - CPU_REMCLOCK * pccore.maxmultiple / pccore.multiple;
+		}else{
+			tsc_tmp = CPU_MSR_TSC;
+		}
+		CPU_EDX = ((tsc_tmp >> 32) & 0xffffffff);
+		CPU_EAX = (tsc_tmp & 0xffffffff);
 	}else{
-		tsc_tmp = CPU_MSR_TSC;
+#endif
+		// CPUクロックに依存するカウンタ値にする
+		static UINT64 tsc_last = 0;
+		static UINT64 tsc_cur = 0;
+		UINT64 tsc_tmp;
+		if(CPU_REMCLOCK != -1){
+			tsc_tmp = CPU_MSR_TSC - CPU_REMCLOCK * pccore.maxmultiple / pccore.multiple;
+		}else{
+			tsc_tmp = CPU_MSR_TSC;
+		}
+		tsc_cur += (tsc_tmp - tsc_last) * pccore.multiple / pccore.maxmultiple;
+		tsc_last = tsc_tmp;
+		CPU_EDX = ((tsc_cur >> 32) & 0xffffffff);
+		CPU_EAX = (tsc_cur & 0xffffffff);
+#if defined(SUPPORT_ASYNC_CPU)
 	}
-	//tsc_tmp /= 1000;
-	tsc_tmp = (tsc_tmp >> 10); // XXX: ????
-	CPU_EDX = ((tsc_tmp >> 32) & 0xffffffff);
-	CPU_EAX = (tsc_tmp & 0xffffffff);
+#endif
 #endif
 //	ia32_panic("RDTSC: not implemented yet!");
 }
@@ -1177,9 +1219,11 @@ RDPMC(void)
 {
 	int idx;
 
-	if (CPU_STAT_PM && (CPU_STAT_VM86 || CPU_STAT_CPL != 0)) {
-		VERBOSE(("RDPMC: VM86(%s) or CPL(%d) != 0", CPU_STAT_VM86 ? "true" : "false", CPU_STAT_CPL));
-		EXCEPTION(GP_EXCEPTION, 0);
+	if(!(CPU_CR4 & CPU_CR4_PCE)){
+		if (CPU_STAT_PM && (CPU_STAT_VM86 || CPU_STAT_CPL != 0)) {
+			VERBOSE(("RDPMC: VM86(%s) or CPL(%d) != 0", CPU_STAT_VM86 ? "true" : "false", CPU_STAT_CPL));
+			EXCEPTION(GP_EXCEPTION, 0);
+		}
 	}
 
 	idx = CPU_ECX;

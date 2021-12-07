@@ -7,13 +7,13 @@
 
 #pragma once
 
-#if defined(NP2_X11)
+#if defined(NP2_X)
 #include <gtk/gtk.h>
 #endif
 
-// XXX: 1600x1024以上にならないので差し当たってはこれで十分
+// XXX: 回転させても1600x1600以上にならないので差し当たってはこれで十分
 #define WAB_MAX_WIDTH	1600
-#define WAB_MAX_HEIGHT	1024
+#define WAB_MAX_HEIGHT	1600
 
 #ifdef __cplusplus
 extern "C" {
@@ -50,9 +50,9 @@ typedef struct {
 typedef struct {
 	int multiwindow; // 別窓モード
 	int ready; // 0以外なら描いても良いよ
-#if defined(NP2_SDL2) || defined(__LIBRETRO__)
+#if defined(NP2_SDL) || defined(__LIBRETRO__)
 	unsigned int* pBuffer;
-#elif defined(NP2_X11)
+#elif defined(NP2_X)
 	GtkWidget *pWABWnd;
 	GdkPixbuf *pPixbuf;
 #else
@@ -65,7 +65,7 @@ typedef struct {
 	NP2WAB_DrawFrame *drawframe; // 画面描画関数。hDCBufにアクセラレータ画面データを転送する。
 } NP2WABWND;
 
-#if defined(NP2_SDL2) || defined(NP2_X11) || defined(__LIBRETRO__)
+#if defined(NP2_SDL) || defined(NP2_X) || defined(__LIBRETRO__)
 void np2wab_init(void);
 #else
 void np2wab_init(HINSTANCE hInstance, HWND g_hWndMain);

@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include "pccore.h"
+#include <pccore.h>
 
 #ifdef __cplusplus
 extern "C"
@@ -15,6 +15,7 @@ extern "C"
 void board118_reset(const NP2CFG *pConfig);
 void board118_bind(void);
 void board118_unbind(void);
+void board118_finalize(void);
 
 #ifdef __cplusplus
 }

@@ -1,4 +1,4 @@
-#include	"compiler.h"
+#include	<compiler.h>
 
 // PEGC 256 color mode 
 
@@ -7,11 +7,15 @@
 
 #if defined(SUPPORT_PC9821)
 
-#include	"cpucore.h"
-#include	"pccore.h"
-#include	"iocore.h"
-#include	"memvga.h"
-#include	"vram.h"
+#include	<cpucore.h>
+#include	<pccore.h>
+#include	<io/iocore.h>
+#include	<mem/memvga.h>
+#include	<vram/vram.h>
+#if defined(SUPPORT_IA32_HAXM)
+#include	<i386hax/haxfunc.h>
+#include	<i386hax/haxcore.h>
+#endif
 
 
 // ---- macros
@@ -60,14 +64,20 @@
 // ---- flat (PEGC 0F00000h-00F80000h Memory Access ?)
 
 REG8 MEMCALL memvgaf_rd8(UINT32 address) {
-
+	
+	if(!(vramop.mio2[PEGC_REG_VRAM_ENABLE] & 0x1)){
+		return 0xff;
+	}
 	return(vramex[address & 0x7ffff]);
 }
 
 void MEMCALL memvgaf_wr8(UINT32 address, REG8 value) {
 
 	UINT8	bit;
-
+	
+	if(!(vramop.mio2[PEGC_REG_VRAM_ENABLE] & 0x1)){
+		return;
+	}
 	address = address & 0x7ffff;
 	vramex[address] = value;
 	bit = (address & 0x40000)?2:1;
@@ -76,7 +86,10 @@ void MEMCALL memvgaf_wr8(UINT32 address, REG8 value) {
 }
 
 REG16 MEMCALL memvgaf_rd16(UINT32 address) {
-
+	
+	if(!(vramop.mio2[PEGC_REG_VRAM_ENABLE] & 0x1)){
+		return 0xffff;
+	}
 	address = address & 0x7ffff;
 	return(LOADINTELWORD(vramex + address));
 }
@@ -84,7 +97,10 @@ REG16 MEMCALL memvgaf_rd16(UINT32 address) {
 void MEMCALL memvgaf_wr16(UINT32 address, REG16 value) {
 
 	UINT8	bit;
-
+	
+	if(!(vramop.mio2[PEGC_REG_VRAM_ENABLE] & 0x1)){
+		return;
+	}
 	address = address & 0x7ffff;
 	STOREINTELWORD(vramex + address, value);
 	bit = (address & 0x40000)?2:1;
@@ -385,10 +401,24 @@ void MEMCALL memvgaio_wr8(UINT32 address, REG8 value) {
 	pos = address - 0x0004;
 	if (pos < 4) {
 		vramop.mio1[pos] = value;
+#if defined(SUPPORT_IA32_HAXM)
+		i386hax_vm_setmemoryarea(vramex + ((vramop.mio1[0] & 15) << 15), 0xA8000, 0x8000);
+		i386hax_vm_setmemoryarea(vramex + ((vramop.mio1[2] & 15) << 15), 0xB0000, 0x8000);
+#endif
 		return;
 	}
 	pos = address - 0x0100;
 	if (pos < 0x20) {
+		if(pos == PEGC_REG_MODE){
+#ifdef SUPPORT_PEGC
+			if(pegc.enable){
+				value &= 0x1;
+			}
+#endif
+			else{
+				value = 0x0;
+			}
+		}
 		vramop.mio2[pos] = value;
 		return;
 	}
@@ -605,7 +635,7 @@ void MEMCALL memvgaio_wr32(UINT32 address, UINT32 value){
 
 	pos = address - 0xe0000 - 0x0100;
 	
-	if(PEGC_REG_PATTERN <= pos){
+	if(address > 0xe0000 + 0x0100 && PEGC_REG_PATTERN <= pos){
 		if(vramop.mio2[PEGC_REG_PLANE_ROP] & 0x8000){
 			// 1 palette x 32 pixels
 			if((pos & 0x3)==0 && pos < 0x100){

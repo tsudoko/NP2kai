@@ -1,12 +1,12 @@
-#include	"compiler.h"
-#include	"cpucore.h"
-#include	"pccore.h"
-#include	"iocore.h"
-#include	"vram.h"
-#include	"scrndraw.h"
-#include	"dispsync.h"
-#include	"maketext.h"
-#include	"font/font.h"
+#include	<compiler.h>
+#include	<cpucore.h>
+#include	<pccore.h>
+#include	<io/iocore.h>
+#include	<vram/vram.h>
+#include	<vram/scrndraw.h>
+#include	<vram/dispsync.h>
+#include	<vram/maketext.h>
+#include	<font/font.h>
 
 
 		TRAM_T	tramflag;
@@ -354,6 +354,10 @@ void maketext(int text_renewal) {
 						if (curx[x] & 0x20) {
 							fntline >>= 1;
 						}
+						if(!fntline) {
+							hook_fontrom(bitmap[x] + (fntline & 0x0f));
+							hf_codeul = 0;
+						}
 						data = fontrom[bitmap[x] + (fntline & 0x0f)];
 						*(UINT32 *)(q+0) = text_table[color[x] + (data >> 4)];
 						*(UINT32 *)(q+4) = text_table[color[x] + (data & 15)];
@@ -662,6 +666,10 @@ void maketext40(int text_renewal) {
 						fntline = nowline;
 						if (curx[x] & 0x20) {
 							fntline >>= 1;
+						}
+						if(!fntline) {
+							hook_fontrom(bitmap[x] + (fntline & 0x0f));
+							hf_codeul = 0;
 						}
 						data = fontrom[bitmap[x] + (fntline & 0x0f)];
 						*(UINT32 *)(q+ 0) = text_tblx2[color[x] +

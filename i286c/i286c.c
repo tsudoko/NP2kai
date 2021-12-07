@@ -1,14 +1,24 @@
-#include	"compiler.h"
-#include	"cpucore.h"
+#include	<compiler.h>
+#include	<cpucore.h>
 #include	"i286c.h"
 #include	"v30patch.h"
-#include	"pccore.h"
-#include	"iocore.h"
-#include	"dmax86.h"
+#include	<pccore.h>
+#include	<io/iocore.h>
+#include	<mem/dmax86.h>
 #include	"i286c.mcr"
 #if defined(ENABLE_TRAP)
 #include "trap/steptrap.h"
 #endif
+#if defined(SUPPORT_ASYNC_CPU)
+#include <timing.h>
+#include <nevent.h>
+#include	<sound/sound.h>
+#include	<sound/beep.h>
+#include	<sound/fmboard.h>
+#include	<sound/soundrom.h>
+#include	<cbus/mpu98ii.h>
+#endif
+
 
 
 	I286CORE	i286core;
@@ -147,7 +157,9 @@ void i286c_initialize(void) {
 #if !defined(MEMOPTIMIZE) || (MEMOPTIMIZE < 2)
 	i286cea_initialize();
 #endif
-	v30cinit();
+	if (CPU_TYPE == CPUTYPE_V30) {
+		v30cinit();
+	}
 	ZeroMemory(&i286core, sizeof(i286core));
 }
 
@@ -170,10 +182,8 @@ static void i286c_initreg(void) {
 
 #if defined(VAEG_FIX)
 void i286c_reset(void) {
-	UINT8 cputype = CPU_TYPE;
 	ZeroMemory(&i286core.s, sizeof(i286core.s));
-	CPU_TYPE = cputype;
-	if (cputype == CPUTYPE_V30) {
+	if (CPU_TYPE == CPUTYPE_V30) {
 		v30c_initreg();
 	}
 	else {
@@ -209,7 +219,7 @@ void i286c_setextsize(UINT32 size) {
 			CPU_EXTMEM = extmem;
 			CPU_EXTMEMSIZE = size;
 			CPU_EXTMEMBASE = CPU_EXTMEM - 0x100000;
-			CPU_EXTLIMIT16 = np2min(size + 0x100000, 0xf00000);
+			CPU_EXTLIMIT16 = MIN(size + 0x100000, 0xf00000);
 #if defined(CPU_EXTLIMIT)
 			CPU_EXTLIMIT = size + 0x100000;
 #endif
@@ -317,6 +327,106 @@ void i286c(void) {
 			dmax86();
 		} while(I286_REMCLOCK > 0);
 	}
+#if defined(SUPPORT_ASYNC_CPU)
+	else if(np2cfg.asynccpu){
+		int firstflag = 1;
+		UINT timing;
+		UINT lcflag = 0;
+		SINT32 oldremclock = CPU_REMCLOCK;
+		static int remclock_mul = 1000;
+		int remclockb = 0;
+		int remclkcnt = 0x100;
+		int repflag = 0;
+		static int latecount = 0;
+		static int latecount2 = 0;
+		static int hltflag = 0;
+#define LATECOUNTER_THRESHOLD	6
+#define LATECOUNTER_THRESHOLDM	6
+		int realclock = 0;
+
+		if(latecount2==0){
+			if(latecount > 0){
+				//latecount--;
+			}else if (latecount < 0){
+				latecount++;
+			}
+		}
+		latecount2 = (latecount2+1) & 0x1fff;
+
+		do {
+#if defined(ENABLE_TRAP)
+			steptrap(CPU_CS, CPU_IP);
+#endif
+			GET_PCBYTE(opcode);
+			i286op[opcode]();
+			
+			// 非同期CPU処理
+			realclock = 0;
+			if(CPU_REMCLOCK >= 0 && !realclock && (remclkcnt > 0x7)){
+				remclkcnt = 0;
+				firstflag = 0;
+				timing = timing_getcount_baseclock();
+				if(timing!=0){
+					if(!asynccpu_fastflag && !asynccpu_lateflag){
+						if(remclock_mul < 100000) {
+							latecount++;
+							if(latecount > +LATECOUNTER_THRESHOLD){
+								if(pccore.multiple > 2){
+									if(pccore.multiple > 40){
+										pccore.multiple-=3;
+									}else if(pccore.multiple > 20){
+										pccore.multiple-=2;
+									}else{
+										pccore.multiple-=1;
+									}
+									pccore.realclock = pccore.baseclock * pccore.multiple;
+		
+									sound_changeclock();
+									beep_changeclock();
+									mpu98ii_changeclock();
+									keyboard_changeclock();
+									mouseif_changeclock();
+									gdc_updateclock();
+								}
+
+								latecount = 0;
+							}
+						}
+						asynccpu_lateflag = 1;
+					}
+					CPU_REMCLOCK = 0;
+					break;
+				}else{
+					if(!hltflag && !asynccpu_lateflag && g_nevent.item[NEVENT_FLAMES].proc==screendisp && g_nevent.item[NEVENT_FLAMES].clock <= CPU_BASECLOCK){
+						//CPU_REMCLOCK = 10000;
+						//oldremclock = CPU_REMCLOCK;
+						if(!asynccpu_fastflag){
+							latecount--;
+							if(latecount < -LATECOUNTER_THRESHOLDM){
+								if(pccore.multiple < np2cfg.multiple){
+									pccore.multiple+=1;
+									pccore.realclock = pccore.baseclock * pccore.multiple;
+		
+									sound_changeclock();
+									beep_changeclock();
+									mpu98ii_changeclock();
+									keyboard_changeclock();
+									mouseif_changeclock();
+									gdc_updateclock();
+
+									latecount = 0;
+								}
+							}
+							asynccpu_fastflag = 1;
+						}
+					}
+					firstflag = 1;
+				}
+			}
+			remclkcnt++;
+		} while(I286_REMCLOCK > 0);
+	}
+#endif
 	else {
 		do {
 #if defined(ENABLE_TRAP)

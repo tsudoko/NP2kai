@@ -1,9 +1,9 @@
-#include	"compiler.h"
-#include	"cpucore.h"
-#include	"pccore.h"
-#include	"iocore.h"
-#include	"bios.h"
-#include	"biosmem.h"
+#include	<compiler.h>
+#include	<cpucore.h>
+#include	<pccore.h>
+#include	<io/iocore.h>
+#include	<bios/bios.h>
+#include	<bios/biosmem.h>
 
 
 static REG8 bios0x1f_90(void) {
@@ -36,9 +36,9 @@ static REG8 bios0x1f_90(void) {
 	leng = LOW16(CPU_CX - 1) + 1;
 //	TRACEOUT(("move %.8x %.8x %.4x", srcbase + srcaddr, dstbase + dstaddr, leng));
 	do {
-		l = np2min(leng, sizeof(work));
-		l = np2min(l, srclimit - srcaddr);
-		l = np2min(l, dstlimit - dstaddr);
+		l = MIN(leng, sizeof(work));
+		l = MIN(l, srclimit - srcaddr);
+		l = MIN(l, dstlimit - dstaddr);
 		if (!l) {
 			CPU_A20EN(FALSE);
 			goto p90_err2;

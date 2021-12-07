@@ -3,12 +3,12 @@
  * @brief	Implementation of the CS4231
  */
 
-#include "compiler.h"
-#include "cs4231.h"
-#include "iocore.h"
-#include "fmboard.h"
-#include "dmac.h"
-#include "cpucore.h"
+#include <compiler.h>
+#include <sound/cs4231.h>
+#include <io/iocore.h>
+#include <sound/fmboard.h>
+#include <io/dmac.h>
+#include <cpucore.h>
 #ifndef CPU_STAT_PM
 #define CPU_STAT_PM	0
 #endif
@@ -137,9 +137,9 @@ void cs4231_dma(NEVENTITEM item) {
 			// バッファに空きがあればデータを読み出す
 			if(!w31play || !(cs4231.reg.featurestatus & (PI|TI|CI))){
 				if (cs4231.bufsize * cs4231_playcountshift[cs4231.reg.datafmt >> 4] / 4 - 4 > cs4231.bufdatas) {
-					rem = np2min(cs4231.bufsize - 4 - cs4231.bufdatas, CS4231_MAXDMAREADBYTES); //読み取り単位は16bitステレオの1サンプル分(4byte)にしておかないと雑音化する
+					rem = MIN(cs4231.bufsize - 4 - cs4231.bufdatas, CS4231_MAXDMAREADBYTES); //読み取り単位は16bitステレオの1サンプル分(4byte)にしておかないと雑音化する
 					pos = cs4231.bufwpos & CS4231_BUFMASK; // バッファ書き込み位置
-					size = np2min(rem, dmach->startcount); // バッファ書き込みサイズ
+					size = MIN(rem, dmach->startcount); // バッファ書き込みサイズ
 					r = dmac_getdata_(dmach, cs4231.buffer, pos, size); // DMA読み取り実行
 					cs4231.bufwpos = (cs4231.bufwpos + r) & CS4231_BUFMASK; // バッファ書き込み位置を更新
 					cs4231.bufdatas += r; // バッファ内の有効なデータ数を更新 = (bufwpos-bufpos)&CS4231_BUFMASK
@@ -154,11 +154,11 @@ void cs4231_dma(NEVENTITEM item) {
 					playcountsmp_Ictl = 1;
 				if(playcountsmp_Ictl > CS4231_MAXDMAREADBYTES) 
 					playcountsmp_Ictl = CS4231_MAXDMAREADBYTES;
-				//int playcountsmp = np2min(playcountsmpmax, r / cs4231_playcountshift[cs4231.reg.datafmt >> 4])-4;
+				//int playcountsmp = MIN(playcountsmpmax, r / cs4231_playcountshift[cs4231.reg.datafmt >> 4])-4;
 				//if(playcountsmp < CS4231_MINDMAREADBYTES) 
 				//	playcountsmp = CS4231_MINDMAREADBYTES*2;
 
-				//playcountsmp = np2min(np2max(r, CS4231_MAXDMAREADBYTES/4) / cs4231_playcountshift[cs4231.reg.datafmt >> 4], playcountsmp) / 2;
+				//playcountsmp = MIN(MAX(r, CS4231_MAXDMAREADBYTES/4) / cs4231_playcountshift[cs4231.reg.datafmt >> 4], playcountsmp) / 2;
 				//neventms = playcountsmp * 1000 / cs4231cfg.rate;
 				//if(neventms <= 0) neventms = 1;
 				//cnt = pccore.realclock / cs4231cfg.rate * 32;
@@ -204,6 +204,7 @@ void cs4231_datasend(REG8 dat) {
 
 // DMA再生開始・終了・中断時に呼ばれる（つもり）
 REG8 DMACCALL cs4231dmafunc(REG8 func) {
+	DMACH	dmach;
 	SINT32	cnt;
 	switch(func) {
 		case DMAEXT_START:
@@ -211,6 +212,10 @@ REG8 DMACCALL cs4231dmafunc(REG8 func) {
 				int playcount = (cs4231.reg.playcount[1]|(cs4231.reg.playcount[0] << 8)) * cs4231_playcountshift[cs4231.reg.datafmt >> 4]; // PI割り込みを発生させるサンプル数(Playback Base register) * サンプルあたりのバイト数
 				// DMA読み取り数カウンタを初期化
 				cs4231.totalsample = 0; 
+
+				// DMA読み取り位置を戻す
+				dmach = dmac.dmach + cs4231.dmach;
+				dmach->adrs.d = dmach->startaddr;
 
 				// DMA読み取り処理開始(NEVENTセット)
 				//nevent_setbyms(NEVENT_CS4231, CS4231_MAXDMAREADBYTES * 1000 / cs4231cfg.rate, cs4231_dma, NEVENT_ABSOLUTE);
@@ -248,7 +253,7 @@ static void setdataalign(void) {
 	step = (0 - cs4231.bufpos) & 3;
 	if (step) {
 		cs4231.bufpos += step;
-		cs4231.bufdatas -= np2min(step, cs4231.bufdatas);
+		cs4231.bufdatas -= MIN(step, cs4231.bufdatas);
 	}
 	cs4231.bufdatas &= ~3;
 	step = (0 - cs4231.bufwpos) & 3;
@@ -262,6 +267,32 @@ void cs4231_control(UINT idx, REG8 dat) {
 	UINT8	modify;
 	DMACH	dmach;
 	switch(idx){
+	case 0x2: // Left Auxiliary #1 Input Control
+		if(g_nSoundID==SOUNDID_WAVESTAR){
+			UINT i;
+			if(dat >= 0x10) dat = 15;
+			cs4231.devvolume[0xff] = (~dat) & 15;
+			opngen_setvol(np2cfg.vol_fm * cs4231.devvolume[0xff] / 15);
+			psggen_setvol(np2cfg.vol_ssg * cs4231.devvolume[0xff] / 15);
+			rhythm_setvol(np2cfg.vol_rhythm * cs4231.devvolume[0xff] / 15);
+#if defined(SUPPORT_FMGEN)
+			if(np2cfg.usefmgen) {
+				opna_fmgen_setallvolumeFM_linear(np2cfg.vol_fm * cs4231.devvolume[0xff] / 15);
+				opna_fmgen_setallvolumePSG_linear(np2cfg.vol_ssg * cs4231.devvolume[0xff] / 15);
+				opna_fmgen_setallvolumeRhythmTotal_linear(np2cfg.vol_rhythm * cs4231.devvolume[0xff] / 15);
+			}
+#endif
+			for (i = 0; i < NELEMENTS(g_opna); i++)
+			{
+				rhythm_update(&g_opna[i].rhythm);
+			}
+		}
+		break;
+	case 0x3: // Right Auxiliary #1 Input Control
+		if(g_nSoundID==SOUNDID_WAVESTAR){
+			// XXX: 本当は左右のボリューム調整が必要
+		}
+		break;
 	case 0xd:
 		break;
 	case 0xc:
@@ -353,12 +384,14 @@ UINT dmac_getdata_(DMACH dmach, UINT8 *buf, UINT offset, UINT size) {
 	UINT32	addr;
 	UINT	i;
 	SINT32	sampleirq = 0; // 割り込みまでに必要なデータ転送数(byte)
-#define PLAYCOUNT_ADJUST_VALUE	32768
+#define PLAYCOUNT_ADJUST_VALUE	65536
+#define PLAYCOUNT_ADJUST2_VALUE	16
 	static UINT32	playcount_adjustcounter = 0;
+	static UINT32	playcount_adjustcounter2 = 0;
 	
 	lengsum = 0;
 	while(size > 0) {
-		leng = np2min(dmach->leng.w, size);
+		leng = MIN(dmach->leng.w, size);
 		if (leng) {
 			int playcount = ((cs4231.reg.playcount[1]|(cs4231.reg.playcount[0] << 8))) * cs4231_playcountshift[cs4231.reg.datafmt >> 4]; // PI割り込みを発生させるサンプル数(Playback Base register) * サンプルあたりのバイト数
 			if(cs4231.totalsample + (SINT32)leng > playcount){
@@ -379,13 +412,20 @@ UINT dmac_getdata_(DMACH dmach, UINT8 *buf, UINT offset, UINT size) {
 				}
 
 				// XXX: 再生位置調整（Win9x,Win2000再生ノイズ対策用・とりあえず+方向だけ）
-				playcount_adjustcounter += leng;
-				if(playcount_adjustcounter >= PLAYCOUNT_ADJUST_VALUE){
-					playcount_adjustcounter -= PLAYCOUNT_ADJUST_VALUE;
-					if(!w31play){
-						addr += 4;
-						if(addr > dmach->lastaddr){
-							addr = dmach->startaddr + (addr - dmach->lastaddr - 1); // DMA読み取りアドレスがアドレス範囲の最後に到達したら最初に戻す
+				if(cs4231_playcountshift[cs4231.reg.datafmt >> 4] == 4){
+					playcount_adjustcounter += leng;
+					if(playcount_adjustcounter >= PLAYCOUNT_ADJUST_VALUE){
+						playcount_adjustcounter -= PLAYCOUNT_ADJUST_VALUE;
+						if(!w31play){
+							addr += 4;
+							if(addr > dmach->lastaddr){
+								addr = dmach->startaddr + (addr - dmach->lastaddr - 1); // DMA読み取りアドレスがアドレス範囲の最後に到達したら最初に戻す
+							}
+							playcount_adjustcounter2++;
+							if(playcount_adjustcounter2 > PLAYCOUNT_ADJUST2_VALUE){
+								playcount_adjustcounter2 -= PLAYCOUNT_ADJUST2_VALUE;
+								cs4231.totalsample += cs4231_playcountshift[cs4231.reg.datafmt >> 4];
+							}
 						}
 					}
 				}

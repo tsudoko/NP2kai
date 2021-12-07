@@ -1,17 +1,10 @@
 #ifndef NP2_IOCORE_H
 #define NP2_IOCORE_H
 
-#ifndef IOOUTCALL
-#define	IOOUTCALL
-#endif
-#ifndef IOINPCALL
-#define	IOINPCALL
-#endif
-
 typedef void (*FNIORESET)(const NP2CFG *pConfig);
 typedef void (*FNIOBIND)(void);
-typedef	void (IOOUTCALL *IOOUT)(UINT port, REG8 val);
-typedef	REG8 (IOINPCALL *IOINP)(UINT port);
+typedef	void (IOOUTCALL *IOOUT)(UINT port, UINT val);
+typedef	UINT (IOINPCALL *IOINP)(UINT port);
 
 #include	"lsidef.h"
 
@@ -20,7 +13,7 @@ typedef	REG8 (IOINPCALL *IOINP)(UINT port);
 #include	"cpuio.h"
 #include	"crtc.h"
 #include	"dipsw.h"
-#include	"dmac.h"
+#include	<io/dmac.h>
 #include	"egc.h"
 #include	"epsonio.h"
 #include	"emsio.h"
@@ -35,16 +28,15 @@ typedef	REG8 (IOINPCALL *IOINP)(UINT port);
 #include	"pic.h"
 #include	"pit.h"
 #include	"printif.h"
-#include	"serial.h"
+#include	<io/serial.h>
 #include	"sysport.h"
-#include	"upd4990.h"
+#include	<io/upd4990.h>
 
 #if defined(SUPPORT_PC9821)
 #include	"pcidev.h"
 #endif
 #if defined(SUPPORT_PEGC)
 #include	"pegc.h"
-extern	_PEGC		pegc;
 #endif
 
 
@@ -72,11 +64,17 @@ extern	_NP2SYSP	np2sysp;
 extern	_PIC		pic;
 extern	_PIT		pit;
 extern	_RS232C		rs232c;
+#if defined(SUPPORT_RS232C_FIFO)
+extern	_RS232CFIFO	rs232cfifo;
+#endif
 extern	_SYSPORT	sysport;
 extern	_UPD4990	uPD4990;
 
 #if defined(SUPPORT_PC9821)
 extern	_PCIDEV		pcidev;
+#endif
+#if defined(SUPPORT_PEGC)
+extern	_PEGC		pegc;
 #endif
 
 

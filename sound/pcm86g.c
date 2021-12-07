@@ -3,8 +3,8 @@
  * @brief	Implementation of the 86-PCM
  */
 
-#include "compiler.h"
-#include "pcm86.h"
+#include <compiler.h>
+#include <sound/pcm86.h>
 
 #define PCM86GET8(p, a)													\
 	do																	\
@@ -137,7 +137,8 @@ static void pcm86stereo16(PCM86 pcm86, SINT32 *lpBuffer, UINT nCount)
 			{
 				SINT32 dat;
 				pcm86->realbuf -= 4;
-				if (pcm86->realbuf < 4)
+				//if (pcm86->realbuf < 4) // ???
+				if (pcm86->realbuf < 0)
 				{
 					goto ps16_bufempty;
 				}
@@ -366,6 +367,6 @@ void SOUNDCALL pcm86gen_getpcm(PCM86 pcm86, SINT32 *lpBuffer, UINT nCount)
 				pcm86stereo8(pcm86, lpBuffer, nCount);
 				break;
 		}
-		pcm86gen_checkbuf(pcm86);
+		pcm86gen_checkbuf(pcm86, nCount);
 	}
 }

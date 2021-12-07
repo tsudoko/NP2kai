@@ -1,13 +1,16 @@
-#include	"compiler.h"
-#include	"scrnmng.h"
-#include	"pccore.h"
-#include	"iocore.h"
-#include	"scrndraw.h"
+#include	<compiler.h>
+#include	<scrnmng.h>
+#include	<pccore.h>
+#include	<io/iocore.h>
+#include	<vram/scrndraw.h>
 #include	"sdraw.h"
-#include	"dispsync.h"
-#include	"palettes.h"
+#include	<vram/dispsync.h>
+#include	<vram/palettes.h>
+#if defined(SUPPORT_VIDEOFILTER)
+#include	<vram/videofilter.h>
+#endif
 #ifdef SUPPORT_WAB
-#include	"wab/wab.h"
+#include	<wab/wab.h>
 #endif
 
 
@@ -15,7 +18,9 @@
 	UINT8	np2_tram[SURFACE_SIZE];
 	UINT8	np2_vram[2][SURFACE_SIZE];
 	UINT8	redrawpending = 0;
-
+#if defined(SUPPORT_VIDEOFILTER)
+	BOOL bPreEnable;
+#endif
 
 static void updateallline(UINT32 update) {
 
@@ -131,6 +136,10 @@ static UINT8 rasterdraw(SDRAWFN sdrawfn, SDRAW sdraw, int maxy) {
 	}
 }
 
+#ifdef SUPPORT_WAB
+void scrnmng_update(void);
+#endif
+
 UINT8 scrndraw_draw(UINT8 redraw) {
 
 	UINT8		ret;
@@ -141,11 +150,13 @@ const SDRAWFN	*sdrawfn;
 	int			i;
 	int			height;
 	
-
 	if (redraw || redrawpending) {
 		updateallline(0x80808080);
 		redrawpending = 0;
 	}
+#if defined(SUPPORT_IA32_HAXM)
+	gdcs.grphdisp |= GDCSCRN_ALLDRAW2;
+#endif
 
 	ret = 0;
 #ifdef SUPPORT_WAB
@@ -153,7 +164,6 @@ const SDRAWFN	*sdrawfn;
 		np2wab_drawframe(); 
 		if(!np2wabwnd.multiwindow){
 			// XXX: ウィンドウアクセラレータ動作中は内蔵グラフィックを描画しない
-			scrnmng_update();
 			ret = 1;
 			return(ret);
 		}
@@ -248,6 +258,21 @@ const SDRAWFN	*sdrawfn;
 			sdraw.src2 = np2_tram;
 			break;
 	}
+#if defined(SUPPORT_VIDEOFILTER)
+	bVFEnable = VideoFilter_GetEnable(hVFMng1) & !np2cfg.vf1_bmponly;
+	bVFImport = FALSE;
+	if(bVFEnable) {
+		if(bit & 3) {
+			VideoFilter_Import98(hVFMng1, (bit & 1) ? np2_vram[0] : np2_vram[1], sdraw.dirty, (gdc.analog & 2) ? TRUE : FALSE);
+			bVFImport = TRUE;
+			VideoFilter_Calc(hVFMng1);
+		}
+	}
+	if(bPreEnable != bVFEnable) {
+		memset(sdraw.dirty, 1, SURFACE_HEIGHT);
+		bPreEnable = bVFEnable;
+	}
+#endif
 	sdraw.dst = surf->ptr;
 	sdraw.width = surf->width;
 	sdraw.xbytes = surf->xalign * surf->width;

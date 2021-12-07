@@ -3,21 +3,17 @@
  * @brief	Implementation of AMD-98
  */
 
-#include "compiler.h"
-#include "amd98.h"
+#include <compiler.h>
+#include <cbus/amd98.h>
 #include <math.h>
-#include "keystat.h"
-#include "iocore.h"
-#include "cbuscore.h"
-#include "generic/keydisp.h"
-#include "sound.h"
-#include "sound/pcmmix.h"
-#include "joymng.h"
-#include "s98.h"
-
-#ifndef M_PI
-#define M_PI 3.14159265358979323846264338327
-#endif
+#include <keystat.h>
+#include <io/iocore.h>
+#include <cbus/cbuscore.h>
+#include <generic/keydisp.h>
+#include <sound/sound.h>
+#include <sound/pcmmix.h>
+#include <joymng.h>
+#include <sound/s98.h>
 
 	AMD98	g_amd98;
 
