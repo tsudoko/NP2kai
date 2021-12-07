@@ -57,7 +57,9 @@
 #include "c9.h"
 #include "c9hl.h"
 extern struct c9hl_state c9s;
-extern int c9hl_active;
+extern int c9hl_listenfd;
+int c9hl_active = 0;
+extern void c9hl_server_accept(void);
 
 NP2OSCFG np2oscfg = {
 #if !defined(CPUCORE_IA32)		/* titles */
@@ -353,10 +355,31 @@ processwait(UINT cnt)
 void
 c9step(void)
 {
-	if (c9hl_active && c9hl_step(&c9s) != 0) {
-		fprintf(stderr, "c9hl error: %s\n", c9s.err);
-		c9hl_active = 0;
-		c9hl_deinit();
+	if(!c9hl_active && c9hl_listenfd > 0) {
+		fd_set r, e;
+		FD_ZERO(&r);
+		FD_SET(c9hl_listenfd, &r);
+		FD_ZERO(&e);
+		FD_SET(c9hl_listenfd, &e);
+		struct timeval t;
+		memset(&t, 0, sizeof(t));
+		t.tv_usec = 1000;
+		errno = 0;
+		if(select(c9hl_listenfd+1, &r, NULL, &e, &t) < 0 || FD_ISSET(c9hl_listenfd, &e)) {
+			if(errno == EINTR)
+				return;
+		}
+		if(FD_ISSET(c9hl_listenfd, &r)) {
+			c9hl_server_accept();
+			c9hl_active = 1;
+		}
+	} else {
+		if(c9hl_step(&c9s) != 0) {
+			if(c9s.err != NULL)
+				fprintf(stderr, "c9hl error: %s\n", c9s.err);
+			c9hl_active = 0;
+			c9hl_deinit();
+		}
 	}
 }
 

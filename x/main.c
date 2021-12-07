@@ -78,8 +78,6 @@
 #endif
 #include "c9.h"
 #include "c9hl.h"
-int c9hl_active = 1;
-
 
 static const char appname[] =
 #if defined(CPUCORE_IA32)
@@ -95,6 +93,60 @@ static const char appname[] =
 typedef void sigfunc(int);
 
 struct c9hl_state c9s;
+int c9hl_listenfd = -1;
+extern int c9hl_active;
+static char c9hl_server_path[] = "/tmp/np2kai-9p";
+
+static int
+c9hl_server_init(void)
+{
+	if((c9hl_listenfd = socket(PF_UNIX, SOCK_STREAM, 0)) < 0) {
+		perror("socket");
+		return -1;
+	}
+
+	struct sockaddr_un listenaddr;
+	memset(&listenaddr, 0, sizeof (listenaddr));
+	listenaddr.sun_family = AF_UNIX;
+	memcpy(listenaddr.sun_path, c9hl_server_path, sizeof c9hl_server_path);
+	if(bind(c9hl_listenfd, (struct sockaddr *)&listenaddr, sizeof listenaddr) < 0) {
+		perror("bind");
+		close(c9hl_listenfd);
+		c9hl_listenfd = -1;
+		return -1;
+	}
+	fprintf(stderr, "9p listening @ %s\n", listenaddr.sun_path);
+	return listen(c9hl_listenfd, 1);
+}
+
+void
+c9hl_server_shutdown(void)
+{
+	if(unlink(c9hl_server_path) < 0)
+		perror("unlink");
+	if(shutdown(c9hl_listenfd, SHUT_RDWR) < 0)
+		perror("shutdown");
+	if(close(c9hl_listenfd) < 0)
+		perror("close");
+	c9hl_listenfd = -1;
+}
+
+int
+c9hl_server_accept(void)
+{
+	int fd;
+	if((fd = accept(c9hl_listenfd, (struct sockaddr *)NULL, NULL)) < 0) {
+		perror("accept");
+		return -1;
+	}
+	c9hl_server_shutdown();
+	if(c9hl_init(0, fd, fd) < 0) {
+		fprintf(stderr, "failed to set up 9p\n");
+		c9hl_server_init();
+		return -1;
+	}
+	return 0;
+}
 
 static sigfunc *
 setup_signal(int signo, sigfunc *func)
@@ -358,32 +410,7 @@ main(int argc, char *argv[])
 	scrnmng_initialize();
 	kbdmng_init();
 	keystat_initialize();
-
-	int listenfd, fd;
-	if((listenfd = socket(PF_UNIX, SOCK_STREAM, 0)) < 0) {
-		perror("socket");
-		return 1;
-	}
-
-	struct sockaddr_un addr;
-	memset(&addr, 0, sizeof (addr));
-	addr.sun_family = AF_UNIX;
-	memcpy(addr.sun_path, "/tmp/np2kai-9p", sizeof "/tmp/np2kai-9p");
-	if(bind(listenfd, (struct sockaddr *)&addr, sizeof (addr)) < 0) {
-		perror("bind");
-		return 1;
-	}
-
-	listen(listenfd, 1);
-	fprintf(stderr, "9p listening @ /tmp/np2kai-9p\n");
-	fd = accept(listenfd, (struct sockaddr *)NULL, NULL);
-	unlink("/tmp/np2kai-9p");
-	if(1) {
-		if(c9hl_init(0, fd, fd) < 0) {
-			fprintf(stderr, "failed to set up 9p\n");
-			c9hl_active = 0;
-		}
-	}
+	c9hl_server_init();
 
 	scrnmode = 0;
 	if (np2cfg.RASTER) {
