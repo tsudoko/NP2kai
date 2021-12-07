@@ -133,7 +133,7 @@ canrw(int rdonly, int block)
 	FD_SET(in, &e);
 	FD_SET(out, &e);
 	memset(&t, 0, sizeof(t));
-	t.tv_usec = 10;
+	t.tv_usec = 1000;
 	for (;;) {
 		errno = 0;
 		if (select(max(in, out)+1, &r, &w, &e, block ? NULL : &t) < 0 || FD_ISSET(in, &e) || FD_ISSET(out, &e)) {
