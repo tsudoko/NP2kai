@@ -355,7 +355,9 @@ processwait(UINT cnt)
 void
 c9step(void)
 {
-	if(!c9hl_active && c9hl_listenfd > 0) {
+	if(!c9hl_active) {
+		if(c9hl_listenfd < 0)
+			return;
 		fd_set r, e;
 		FD_ZERO(&r);
 		FD_SET(c9hl_listenfd, &r);
@@ -373,13 +375,14 @@ c9step(void)
 			c9hl_server_accept();
 			c9hl_active = 1;
 		}
-	} else {
-		if(c9hl_step(&c9s) != 0) {
-			if(c9s.err != NULL)
-				fprintf(stderr, "c9hl error: %s\n", c9s.err);
-			c9hl_active = 0;
-			c9hl_deinit();
-		}
+		return;
+	}
+
+	if(c9hl_step(&c9s) != 0) {
+		if(c9s.err != NULL)
+			fprintf(stderr, "c9hl error: %s\n", c9s.err);
+		c9hl_active = 0;
+		c9hl_deinit();
 	}
 }
 

@@ -502,9 +502,7 @@ main(int argc, char *argv[])
 	toolkit_widget_mainloop();
 	rv = 0;
 
-	if(c9hl_active)
-		c9hl_deinit();
-	else
+	if(!c9hl_active)
 		c9hl_server_shutdown();
 	kdispwin_destroy();
 	toolwin_destroy();
