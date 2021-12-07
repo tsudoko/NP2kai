@@ -97,7 +97,7 @@ int c9hl_listenfd = -1;
 extern int c9hl_active;
 static char c9hl_server_path[] = "/tmp/np2kai-9p";
 
-static int
+int
 c9hl_server_init(void)
 {
 	if((c9hl_listenfd = socket(PF_UNIX, SOCK_STREAM, 0)) < 0) {

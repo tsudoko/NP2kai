@@ -59,6 +59,7 @@
 extern struct c9hl_state c9s;
 extern int c9hl_listenfd;
 int c9hl_active = 0;
+extern int c9hl_server_init(void);
 extern void c9hl_server_accept(void);
 
 NP2OSCFG np2oscfg = {
@@ -383,6 +384,7 @@ c9step(void)
 			fprintf(stderr, "c9hl error: %s\n", c9s.err);
 		c9hl_active = 0;
 		c9hl_deinit();
+		c9hl_server_init();
 	}
 }
 
