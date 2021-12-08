@@ -18,6 +18,8 @@ extern char *c9hl_uid;
 extern struct c9hl_entry c9hl_qids[];
 /* number of entries in c9hl_qids */
 extern int c9hl_nqids;
+/* stat handler */
+extern int c9hl_stat(uint64_t path, C9stat *st, char **err, struct C9aux *aux);
 /* file read handler */
 extern int c9hl_readf(uint64_t path, unsigned char *p, size_t size, int64_t offset, char **err, struct C9aux *aux);
 /* file write handler */

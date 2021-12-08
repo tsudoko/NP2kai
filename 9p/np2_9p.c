@@ -28,6 +28,36 @@ struct c9hl_entry c9hl_qids[] = {
 };
 int c9hl_nqids = nelem(c9hl_qids);
 
+static inline size_t
+memsize(void)
+{
+	/* not exactly true (conventional memory size is usually lower, see
+	   generic/np2info.c:/^static void info_mem1/ for details) but we
+	   don't care as lower conventional memory sizes just leave holes
+	   in the address space without making it smaller */
+	return 1024*1024 + pccore.extmem*1024*1024;
+}
+
+int
+c9hl_stat(uint64_t path, C9stat *st, char **err, struct C9aux *aux)
+{
+	switch(path) {
+	case Qio8port:
+		st->size = snprintf(NULL, 0, "%d\n", aux->io8_port);
+		st->mode |= 0222;
+		break;
+	case Qio8data:
+		st->size = 1;
+		st->mode |= 0222;
+		break;
+	case Qmem:
+		st->size = memsize();
+		st->mode |= 0222;
+		break;
+	}
+	return 0;
+}
+
 int
 c9hl_readf(uint64_t path, unsigned char *p, size_t size, int64_t offset, char **err, struct C9aux *aux)
 {

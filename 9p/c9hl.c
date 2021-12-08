@@ -336,19 +336,19 @@ openfid(Fid *f, C9mode mode, char **err)
 }
 
 static int
-statfid(Fid *f, C9stat *stout, char **err)
+statfid(C9ctx *c, Fid *f, C9stat *stout, char **err)
 {
 	memset(stout, 0, sizeof(*stout));
 	stout->name = f->name;
 	stout->qid = f->qid;
-	stout->mode = 0646;
+	stout->mode = 0644;
 	stout->gid = c9hl_uid;
 	stout->uid = c9hl_uid;
 	stout->muid = c9hl_uid;
 	if(f->qid.type & C9qtdir)
 		stout->mode |= 0111 | C9stdir;
 
-	return 0;
+	return c9hl_stat(f->qid.path, stout, err, c->aux);
 }
 
 static uint8_t *
@@ -490,12 +490,14 @@ readf(C9ctx *c, C9tag tag, Fid *f, uint64_t offset, uint32_t size, char **err)
 
 		c9st[i].name = c9hl_qids[f->diri].name;
 		c9st[i].qid = c9hl_qids[f->diri].q;
-		c9st[i].mode = 0646;
+		c9st[i].mode = 0644;
 		c9st[i].uid = c9hl_uid;
 		c9st[i].gid = c9hl_uid;
 		c9st[i].muid = c9hl_uid;
 		if (c9st[i].qid.type & C9qtdir)
 			c9st[i].mode |= 0111 | C9stdir;
+		if(c9hl_stat(c9st[i].qid.path, &c9st[i], err, c->aux) < 0)
+			return -1;
 
 		c9st[i].name = strdup(c9st[i].name);
 		c9stp[num++] = &c9st[i];
@@ -642,7 +644,7 @@ ctxt(C9ctx *c, C9t *t)
 			break;
 		case Tstat:
 			trace(" fid=%d\n", t->fid);
-			if ((f = findfid(t->fid, &err)) != NULL && statfid(f, &st, &err) == 0 && s9do(s9stat(c, t->tag, &st), &err) == 0)
+			if ((f = findfid(t->fid, &err)) != NULL && statfid(c, f, &st, &err) == 0 && s9do(s9stat(c, t->tag, &st), &err) == 0)
 				trace("<- Rstat tag=%d ...\n", t->tag);
 			break;
 		case Twstat:
