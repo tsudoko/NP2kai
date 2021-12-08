@@ -96,6 +96,7 @@ typedef void sigfunc(int);
 struct C9aux c9aux;
 struct c9hl_state c9s;
 int c9hl_listenfd = -1;
+int c9hl_clientfd = -1;
 extern int c9hl_active;
 static struct sockaddr_un listenaddr;
 
@@ -142,13 +143,12 @@ c9hl_server_shutdown(void)
 int
 c9hl_server_accept(void)
 {
-	int fd;
-	if((fd = accept(c9hl_listenfd, (struct sockaddr *)NULL, NULL)) < 0) {
+	if((c9hl_clientfd = accept(c9hl_listenfd, (struct sockaddr *)NULL, NULL)) < 0) {
 		perror("accept");
 		return -1;
 	}
 	c9hl_server_shutdown();
-	if(c9hl_init(&c9s, 0, fd, fd) < 0) {
+	if(c9hl_init(&c9s, 9, c9hl_clientfd, c9hl_clientfd) < 0) {
 		fprintf(stderr, "failed to set up 9p\n");
 		c9hl_server_init();
 		return -1;

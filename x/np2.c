@@ -54,11 +54,13 @@
 #endif
 
 #include <stdint.h>
+#include <sys/socket.h>
 #include "c9.h"
 #include "c9hl.h"
 extern struct c9hl_state c9s;
 extern int c9hl_listenfd;
 int c9hl_active = 0;
+extern int c9hl_clientfd;
 extern int c9hl_server_init(void);
 extern void c9hl_server_accept(void);
 
@@ -384,6 +386,9 @@ c9step(void)
 			fprintf(stderr, "c9hl error: %s\n", c9s.err);
 		c9hl_active = 0;
 		c9hl_deinit();
+		shutdown(c9hl_clientfd, SHUT_RDWR);
+		close(c9hl_clientfd);
+		c9hl_clientfd = -1;
 		c9hl_server_init();
 	}
 }
