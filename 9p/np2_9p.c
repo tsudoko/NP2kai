@@ -4,6 +4,7 @@
 #include "cpumem.h"
 #include "pccore.h"
 #include <io/iocore.h>
+#include <keystat.h>
 #include "c9.h"
 #include "c9hl.h"
 #include "np2_9p.h"
@@ -15,6 +16,9 @@ enum {
 	Qio8dir,
 	Qio8port,
 	Qio8data,
+	Qkbddir,
+	Qkbdscancode,
+	Qkbdleds,
 };
 
 char *c9hl_uid = "neko";
@@ -25,6 +29,9 @@ struct c9hl_entry c9hl_qids[] = {
 	[Qio8dir]  = {"io8",    Qroot,   0,         {Qio8dir, 0, C9qtdir}},
 	[Qio8port] = {"port",   Qio8dir, C9hlwstat, {Qio8port, 0, C9qtfile}},
 	[Qio8data] = {"data",   Qio8dir, C9hlwstat, {Qio8data, 0, C9qtfile}},
+	[Qkbddir]      = {"kbd",      Qroot,   0,         {Qkbddir, 0, C9qtdir}},
+	[Qkbdscancode] = {"scancode", Qkbddir, C9hlwstat, {Qkbdscancode, 0, C9qtfile}},
+	[Qkbdleds]     = {"leds",     Qkbddir, 0,         {Qkbdleds, 0, C9qtfile}},
 };
 int c9hl_nqids = nelem(c9hl_qids);
 
@@ -38,10 +45,25 @@ memsize(void)
 	return 1024*1024 + pccore.extmem*1024*1024;
 }
 
+static inline REG8
+ledstat(void)
+{
+	/* ref: keystat.c:/^static REG8 getledstat/ */
+	REG8 ret = 0;
+	if(keyctrl.kanaref != NKEYREF_NC)
+		ret |= 8;
+	if(keyctrl.capsref != NKEYREF_NC)
+		ret |= 4;
+	return ret;
+}
+
 int
 c9hl_stat(uint64_t path, C9stat *st, char **err, struct C9aux *aux)
 {
 	switch(path) {
+	case Qkbdscancode:
+		st->mode = 0222;
+		break;
 	case Qio8port:
 		st->size = snprintf(NULL, 0, "%d\n", aux->io8_port);
 		st->mode |= 0222;
@@ -70,6 +92,16 @@ c9hl_readf(uint64_t path, unsigned char *p, size_t size, int64_t offset, char **
 		return -1;
 	}
 	switch(path) {
+	case Qkbdleds: {
+		char buf[16];
+		size_t nbuf = snprintf(buf, sizeof buf, "%d\n", ledstat());
+		if(offset >= nbuf)
+			return 0;
+		if(size > nbuf-offset)
+			size = nbuf-offset;
+		memcpy(p, buf+offset, size);
+		return size;
+	}
 	case Qio8port: {
 		char buf[16];
 		size_t nbuf = snprintf(buf, sizeof buf, "%d\n", aux->io8_port);
@@ -114,6 +146,14 @@ c9hl_writef(uint64_t path, unsigned char *p, size_t size, int64_t offset, char *
 		return -1;
 	}
 	switch(path) {
+	case Qkbdscancode:
+		for(int i = 0; i < size; i++) {
+			if(p[i] & 0x80)
+				keystat_keyup(p[i] & 0x7f);
+			else
+				keystat_keydown(p[i] & 0x7f);
+		}
+		return size;
 	case Qio8port: {
 		char buf[16];
 		UINT port;
