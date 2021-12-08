@@ -282,8 +282,71 @@ delfid(C9fid fid, char **err)
 	return -1;
 }
 
+static int
+hasperm(C9stat *st, C9mode mode, char **err)
+{
+	int m, stm;
+
+	m = mode & 0xf;
+	stm = st->mode & 0777;
+	*err = Eperm;
+	if (((stm & 0111) == 0 || (stm & 0444) == 0) && m == C9exec) /* executing needs rx */
+		return 0;
+	if ((stm & 0222) == 0 && (m == C9write || m == C9rdwr)) /* writing needs w */
+		return 0;
+	if ((stm & 0444) == 0 && m != C9write) /* reading needs r */
+		return 0;
+	if (st->mode & C9stdir && ((stm & 0111) == 0 || (stm & 0444) == 0)) /* dirs need rx */
+		return 0;
+	*err = NULL;
+
+	return 1;
+}
+
+static int
+statqid(C9ctx *c, C9qid qid, C9stat *stout, char **err)
+{
+	memset(stout, 0, sizeof(*stout));
+	stout->name = c9hl_qids[qid.path].name;
+	stout->qid = qid;
+	stout->mode = 0644;
+	stout->gid = c9hl_uid;
+	stout->uid = c9hl_uid;
+	stout->muid = c9hl_uid;
+	if(qid.type & C9qtdir)
+		stout->mode |= 0111 | C9stdir;
+
+	return c9hl_stat(qid.path, stout, err, c->aux);
+}
+
+static uint8_t *
+ctxread(C9ctx *c, uint32_t size, int *err)
+{
+	uint32_t n;
+	int r;
+
+	used(c);
+	*err = 0;
+	for (n = 0; n < size; n += r) {
+		errno = 0;
+		if ((r = read(in, rdbuf+n, size-n)) <= 0) {
+			if (r == EINTR)
+				continue;
+			if (r == 0) {
+				eof = 1;
+			} else {
+				*err = 1;
+				perror("ctxread");
+			}
+			return NULL;
+		}
+	}
+
+	return rdbuf;
+}
+
 static Fid *
-walk(C9fid fid, C9fid nfid, char *el[], C9qid *qids[], char **err)
+walk(C9ctx *c, C9fid fid, C9fid nfid, char *el[], C9qid *qids[], char **err)
 {
 	Fid *f;
 	struct c9hl_entry *entry;
@@ -329,52 +392,13 @@ walk(C9fid fid, C9fid nfid, char *el[], C9qid *qids[], char **err)
 }
 
 static int
-openfid(Fid *f, C9mode mode, char **err)
+openfid(C9ctx *c, Fid *f, C9mode mode, char **err)
 {
+	C9stat st;
+	if (statqid(c, f->qid, &st, err) || !hasperm(&st, mode, err))
+		return -1;
 	f->mode = mode;
 	return 0;
-}
-
-static int
-statfid(C9ctx *c, Fid *f, C9stat *stout, char **err)
-{
-	memset(stout, 0, sizeof(*stout));
-	stout->name = f->name;
-	stout->qid = f->qid;
-	stout->mode = 0644;
-	stout->gid = c9hl_uid;
-	stout->uid = c9hl_uid;
-	stout->muid = c9hl_uid;
-	if(f->qid.type & C9qtdir)
-		stout->mode |= 0111 | C9stdir;
-
-	return c9hl_stat(f->qid.path, stout, err, c->aux);
-}
-
-static uint8_t *
-ctxread(C9ctx *c, uint32_t size, int *err)
-{
-	uint32_t n;
-	int r;
-
-	used(c);
-	*err = 0;
-	for (n = 0; n < size; n += r) {
-		errno = 0;
-		if ((r = read(in, rdbuf+n, size-n)) <= 0) {
-			if (r == EINTR)
-				continue;
-			if (r == 0) {
-				eof = 1;
-			} else {
-				*err = 1;
-				perror("ctxread");
-			}
-			return NULL;
-		}
-	}
-
-	return rdbuf;
 }
 
 static uint8_t *
@@ -592,7 +616,7 @@ ctxt(C9ctx *c, C9t *t)
 			for (i = 0; t->walk.wname[i] != NULL; i++)
 				trace(" \"%s\"", t->walk.wname[i]);
 			trace("\n");
-			walk(t->fid, t->walk.newfid, t->walk.wname, qids, &err);
+			walk(c, t->fid, t->walk.newfid, t->walk.wname, qids, &err);
 			if (err == NULL && s9do(s9walk(c, t->tag, qids), &err) == 0) {
 				trace("<- Rwalk tag=%d ", t->tag);
 				for (i = 0; qids[i] != NULL; i++)
@@ -607,7 +631,7 @@ ctxt(C9ctx *c, C9t *t)
 					err = Eperm;
 				else*/ if (t->open.mode != C9read && (f->qid.type & C9qtdir) != 0)
 					err = Eisdir;
-				else if (openfid(f, t->open.mode, &err) == 0 && s9do(s9open(c, t->tag, &f->qid, f->iounit), &err) == 0)
+				else if (openfid(c, f, t->open.mode, &err) == 0 && s9do(s9open(c, t->tag, &f->qid, f->iounit), &err) == 0)
 					trace("<- Ropen tag=%d qid=[path=%"PRIu64" type=0x%02x version=%"PRIu32"] iounit=%d\n", t->tag, f->qid.path, f->qid.type, f->qid.version, f->iounit);
 			}
 			break;
@@ -644,7 +668,7 @@ ctxt(C9ctx *c, C9t *t)
 			break;
 		case Tstat:
 			trace(" fid=%d\n", t->fid);
-			if ((f = findfid(t->fid, &err)) != NULL && statfid(c, f, &st, &err) == 0 && s9do(s9stat(c, t->tag, &st), &err) == 0)
+			if ((f = findfid(t->fid, &err)) != NULL && statqid(c, f->qid, &st, &err) == 0 && s9do(s9stat(c, t->tag, &st), &err) == 0)
 				trace("<- Rstat tag=%d ...\n", t->tag);
 			break;
 		case Twstat:
