@@ -107,9 +107,12 @@ c9hl_server_init(void)
 		return -1;
 	}
 
+	char *xdg_runtime_dir = getenv("XDG_RUNTIME_DIR");
+	if(xdg_runtime_dir == NULL)
+		xdg_runtime_dir = "/tmp";
 	memset(&listenaddr, 0, sizeof (listenaddr));
 	listenaddr.sun_family = AF_UNIX;
-	snprintf(listenaddr.sun_path, sizeof listenaddr.sun_path, "/tmp/%s-9p", appname);
+	snprintf(listenaddr.sun_path, sizeof listenaddr.sun_path, "%s/%s-9p", xdg_runtime_dir, appname);
 	if(bind(c9hl_listenfd, (struct sockaddr *)&listenaddr, sizeof listenaddr) < 0) {
 		perror("bind");
 		close(c9hl_listenfd);
