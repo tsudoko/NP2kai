@@ -646,8 +646,14 @@ ctxt(C9ctx *c, C9t *t)
 				trace("<- Rstat tag=%d ...\n", t->tag);
 			break;
 		case Twstat:
-			trace("...\n");
-			err = Enowstat;
+			if ((f = findfid(t->fid, &err)) == NULL)
+				break;
+			if ((c9hl_qids[f->qid.path].hl_flags & C9hlwstat) == 0) {
+				err = Enowstat;
+				break;
+			}
+			if (s9do(s9wstat(c, t->tag), &err) == 0)
+				trace("<- Rwstat tag=%d ...\n", t->tag);
 			break;
 		}
 	}

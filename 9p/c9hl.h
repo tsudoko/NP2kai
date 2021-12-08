@@ -1,7 +1,12 @@
 struct c9hl_entry {
 	char *name;
 	uint64_t parent;
+	uint32_t hl_flags;
 	C9qid q;
+};
+
+enum {
+	C9hlwstat = 1 << 1, /* allow wstat, useful if you want to allow truncation for example */
 };
 
 #define Qroot 0
