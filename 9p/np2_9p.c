@@ -4,6 +4,7 @@
 #include "cpumem.h"
 #include "c9.h"
 #include "c9hl.h"
+#include "np2_9p.h"
 
 #define nelem(x) (int)(sizeof(x)/sizeof((x)[0]))
 
@@ -24,18 +25,18 @@ struct c9hl_entry c9hl_qids[] = {
 int c9hl_nqids = nelem(c9hl_qids);
 
 int
-c9hl_readf(uint64_t path, unsigned char *p, size_t size, int64_t offset, char **err)
+c9hl_readf(uint64_t path, unsigned char *p, size_t size, int64_t offset, char **err, struct C9aux *aux)
 {
+	if(offset != (UINT32)offset) {
+		*err = "offset too large";
+		return -1;
+	}
+	if(size != (UINT)size) {
+		*err = "size too large";
+		return -1;
+	}
 	switch(path) {
 	case Qmem:
-		if(offset != (UINT32)offset) {
-			*err = "offset too large";
-			return -1;
-		}
-		if(size != (UINT)size) {
-			*err = "size too large";
-			return -1;
-		}
 		MEMP_READS((UINT32)offset, p, (UINT)size);
 		return size;
 	default:
@@ -45,18 +46,18 @@ c9hl_readf(uint64_t path, unsigned char *p, size_t size, int64_t offset, char **
 }
 
 int
-c9hl_writef(uint64_t path, unsigned char *p, size_t size, int64_t offset, char **err)
+c9hl_writef(uint64_t path, unsigned char *p, size_t size, int64_t offset, char **err, struct C9aux *aux)
 {
+	if(offset != (UINT32)offset) {
+		*err = "offset too large";
+		return -1;
+	}
+	if(size != (UINT)size) {
+		*err = "size too large";
+		return -1;
+	}
 	switch(path) {
 	case Qmem:
-		if(offset != (UINT32)offset) {
-			*err = "offset too large";
-			return -1;
-		}
-		if(size != (UINT)size) {
-			*err = "size too large";
-			return -1;
-		}
 		MEMP_WRITES((UINT32)offset, p, (UINT)size);
 		return size;
 	default:

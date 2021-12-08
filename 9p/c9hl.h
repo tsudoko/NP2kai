@@ -14,15 +14,16 @@ extern struct c9hl_entry c9hl_qids[];
 /* number of entries in c9hl_qids */
 extern int c9hl_nqids;
 /* file read handler */
-extern int c9hl_readf(uint64_t path, unsigned char *p, size_t size, int64_t offset, char **err);
+extern int c9hl_readf(uint64_t path, unsigned char *p, size_t size, int64_t offset, char **err, struct C9aux *aux);
 /* file write handler */
-extern int c9hl_writef(uint64_t path, unsigned char *p, size_t size, int64_t offset, char **err);
+extern int c9hl_writef(uint64_t path, unsigned char *p, size_t size, int64_t offset, char **err, struct C9aux *aux);
 
 struct c9hl_state {
 	char *err;
 	int rdonly, block;
+	struct C9aux *aux;
 };
 
-int c9hl_init(int a_debug, int a_in, int a_out);
+int c9hl_init(struct c9hl_state *, int a_debug, int a_in, int a_out);
 void c9hl_deinit(void);
 int c9hl_step(struct c9hl_state *);

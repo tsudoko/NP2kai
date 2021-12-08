@@ -453,7 +453,7 @@ readf(C9ctx *c, C9tag tag, Fid *f, uint64_t offset, uint32_t size, char **err)
 			*err = Enomem;
 			return -1;
 		}
-		if ((n = c9hl_readf(f->qid.path, p, size, offset, err)) < 0) {
+		if ((n = c9hl_readf(f->qid.path, p, size, offset, err, c->aux)) < 0) {
 			free(p);
 			return -1;
 		}
@@ -530,7 +530,7 @@ writef(C9ctx *c, C9tag tag, Fid *f, uint64_t offset, uint32_t size, void *data, 
 		size = c->msize - 12;
 
 	if ((f->qid.type & C9qtdir) == 0) { /* a file */
-		if ((n = c9hl_writef(f->qid.path, data, size, offset, err)) < 0) {
+		if ((n = c9hl_writef(f->qid.path, data, size, offset, err, c->aux)) < 0) {
 			return -1;
 		}
 		res = s9do(s9write(c, tag, n), err);
@@ -718,7 +718,7 @@ c9hl_step(struct c9hl_state *s)
 }
 
 int
-c9hl_init(int a_debug, int a_in, int a_out)
+c9hl_init(struct c9hl_state *c9s, int a_debug, int a_in, int a_out)
 {
 	debug = a_debug;
 
@@ -737,6 +737,7 @@ c9hl_init(int a_debug, int a_in, int a_out)
 	ctx.end = ctxend;
 	ctx.t = ctxt;
 	ctx.error = ctxerror;
+	ctx.aux = c9s->aux;
 
 	rdbuf = calloc(1, ctx.msize);
 	wrbufsz = ctx.msize;

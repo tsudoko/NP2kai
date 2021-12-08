@@ -78,6 +78,7 @@
 #endif
 #include "c9.h"
 #include "c9hl.h"
+#include "np2_9p.h"
 
 static const char appname[] =
 #if defined(CPUCORE_IA32)
@@ -92,6 +93,7 @@ static const char appname[] =
  */
 typedef void sigfunc(int);
 
+struct C9aux c9aux;
 struct c9hl_state c9s;
 int c9hl_listenfd = -1;
 extern int c9hl_active;
@@ -115,6 +117,10 @@ c9hl_server_init(void)
 		c9hl_listenfd = -1;
 		return -1;
 	}
+
+	memset(&c9aux, 0, sizeof c9aux);
+	c9s.aux = &c9aux;
+
 	fprintf(stderr, "9p listening @ %s\n", listenaddr.sun_path);
 	return listen(c9hl_listenfd, 1);
 }
@@ -140,7 +146,7 @@ c9hl_server_accept(void)
 		return -1;
 	}
 	c9hl_server_shutdown();
-	if(c9hl_init(0, fd, fd) < 0) {
+	if(c9hl_init(&c9s, 0, fd, fd) < 0) {
 		fprintf(stderr, "failed to set up 9p\n");
 		c9hl_server_init();
 		return -1;
