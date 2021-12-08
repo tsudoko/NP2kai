@@ -89,9 +89,13 @@ c9hl_readf(uint64_t path, unsigned char *p, size_t size, int64_t offset, char **
 		}
 		p[0] = iocore_inp8(aux->io8_port);
 		return 1;
-	case Qmem:
+	case Qmem: {
+		size_t membytes = memsize();
+		offset = MIN(offset, membytes);
+		size = MIN(size, membytes-offset);
 		MEMP_READS((UINT32)offset, p, (UINT)size);
 		return size;
+	}
 	default:
 		*err = "reading not implemented for this file";
 	}
@@ -145,9 +149,13 @@ c9hl_writef(uint64_t path, unsigned char *p, size_t size, int64_t offset, char *
 		}
 		iocore_out8(aux->io8_port, p[0]);
 		return 1;
-	case Qmem:
+	case Qmem: {
+		size_t membytes = memsize();
+		offset = MIN(offset, membytes);
+		size = MIN(size, membytes-offset);
 		MEMP_WRITES((UINT32)offset, p, (UINT)size);
 		return size;
+	}
 	default:
 		*err = "writing not implemented for this file";
 	}
