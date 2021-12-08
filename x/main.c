@@ -97,7 +97,7 @@ struct C9aux c9aux;
 struct c9hl_state c9s;
 int c9hl_listenfd = -1;
 extern int c9hl_active;
-static char c9hl_server_path[] = "/tmp/np2kai-9p";
+static struct sockaddr_un listenaddr;
 
 int
 c9hl_server_init(void)
@@ -107,10 +107,9 @@ c9hl_server_init(void)
 		return -1;
 	}
 
-	struct sockaddr_un listenaddr;
 	memset(&listenaddr, 0, sizeof (listenaddr));
 	listenaddr.sun_family = AF_UNIX;
-	memcpy(listenaddr.sun_path, c9hl_server_path, sizeof c9hl_server_path);
+	snprintf(listenaddr.sun_path, sizeof listenaddr.sun_path, "/tmp/%s-9p", appname);
 	if(bind(c9hl_listenfd, (struct sockaddr *)&listenaddr, sizeof listenaddr) < 0) {
 		perror("bind");
 		close(c9hl_listenfd);
@@ -128,7 +127,7 @@ c9hl_server_init(void)
 void
 c9hl_server_shutdown(void)
 {
-	if(unlink(c9hl_server_path) < 0)
+	if(unlink(listenaddr.sun_path) < 0)
 		perror("unlink");
 	if(shutdown(c9hl_listenfd, SHUT_RDWR) < 0)
 		perror("shutdown");
