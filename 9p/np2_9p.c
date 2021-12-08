@@ -64,6 +64,9 @@ c9hl_stat(uint64_t path, C9stat *st, char **err, struct C9aux *aux)
 	case Qkbdscancode:
 		st->mode = 0222;
 		break;
+	case Qkbdleds:
+		st->mode = 0444;
+		break;
 	case Qio8port:
 		st->size = snprintf(NULL, 0, "%d\n", aux->io8_port);
 		st->mode |= 0222;
